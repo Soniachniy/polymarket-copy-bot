@@ -1,20 +1,44 @@
 import WebSocket from 'ws';
-import { ethers } from 'ethers';
 import { config } from './config.js';
 import type { Trade } from './monitor.js';
 
-// OrderFilled(bytes32,address,address,uint256,uint256,uint256,uint256,uint256)
-const ORDER_FILLED_TOPIC = ethers.utils.id(
-  'OrderFilled(bytes32,address,address,uint256,uint256,uint256,uint256,uint256)'
-);
+/**
+ * AlchemyMonitor
+ *
+ * Subscribes to `alchemy_pendingTransactions` via Alchemy's WebSocket endpoint.
+ *
+ * Filter applied at subscription time:
+ *   fromAddress — TARGET_WALLET (the wallet being copy-traded)
+ *   toAddress   — CTF Exchange + NegRisk Exchange contracts
+ *   hashesOnly  — false  →  full tx objects received
+ *
+ * On each pending tx:
+ *   1. `onEarlyTx` callback fires → index.ts triggers an immediate REST poll,
+ *      bypassing the POLL_INTERVAL wait.  This is the primary speed benefit.
+ *   2. Full tx object is available for further calldata decoding if needed.
+ *
+ * Why this approach over eth_subscribe logs:
+ *   - Fires at mempool level (before block confirmation, ~2 s faster on Polygon)
+ *   - Native address-level filter eliminates scanning all exchange logs
+ *   - Pairs naturally with the REST poller which returns clean Polymarket trade metadata
+ *
+ * Note: Polymarket's CLOB settles orders via its own infrastructure, so most CLOB
+ * fills arrive via the Polymarket WS or REST poller.  alchemy_pendingTransactions
+ * catches direct on-chain interactions from the target wallet (merges, redeems,
+ * direct fills) and acts as an early-trigger for the REST poll.
+ */
 
-// USDC collateral is represented as assetId = 0 in Polymarket's CTF Exchange
-const USDC_ASSET_ID = ethers.BigNumber.from(0);
+// Exchange contract addresses — normalised to lowercase for comparison
+const EXCHANGE_ADDRESSES = new Set<string>([
+  config.contracts.exchange.toLowerCase(),
+  config.contracts.negRiskExchange.toLowerCase(),
+]);
 
 export class AlchemyMonitor {
   private ws: WebSocket | null = null;
   private subscriptionId: string | null = null;
   private onTradeCallback?: (trade: Trade) => Promise<void>;
+  private onEarlyTxCallback?: (txHash: string, from: string, to: string) => Promise<void>;
   private reconnectAttempts = 0;
   private readonly maxReconnectAttempts = 10;
   private readonly reconnectBaseDelay = 1000;
@@ -22,14 +46,32 @@ export class AlchemyMonitor {
   private pingInterval: NodeJS.Timeout | null = null;
   private reqId = 1;
 
-  async initialize(onTrade: (trade: Trade) => Promise<void>): Promise<void> {
+  // Dedup for pending txs — Alchemy may re-emit the same hash as price/nonce changes
+  private seenPendingTxs = new Set<string>();
+  private readonly maxSeenTxs = 5000;
+
+  /**
+   * @param onTrade     - Standard trade callback (shared with all monitor sources)
+   * @param onEarlyTx   - Optional callback fired on mempool detection; use to trigger
+   *                      an immediate REST poll in index.ts
+   */
+  async initialize(
+    onTrade: (trade: Trade) => Promise<void>,
+    onEarlyTx?: (txHash: string, from: string, to: string) => Promise<void>,
+  ): Promise<void> {
     this.onTradeCallback = onTrade;
+    if (onEarlyTx !== undefined) {
+      this.onEarlyTxCallback = onEarlyTx;
+    }
     await this.connect();
   }
 
   private getWsUrl(): string {
     if (!config.alchemy.wsUrl) {
-      throw new Error('ALCHEMY_WS_URL is required. Set it in .env');
+      throw new Error(
+        'ALCHEMY_WS_URL is required when USE_ALCHEMY=true.\n' +
+        'Set it in .env:  ALCHEMY_WS_URL=wss://polygon-mainnet.g.alchemy.com/v2/<API_KEY>',
+      );
     }
     return config.alchemy.wsUrl;
   }
@@ -42,16 +84,16 @@ export class AlchemyMonitor {
 
       const timeout = setTimeout(() => {
         if (!this.isConnected) {
-          reject(new Error('Alchemy WebSocket connection timeout'));
+          reject(new Error('Alchemy WebSocket connection timeout (10 s)'));
         }
-      }, 10000);
+      }, 10_000);
 
       this.ws.on('open', () => {
         clearTimeout(timeout);
         this.isConnected = true;
         this.reconnectAttempts = 0;
         console.log('✅ Alchemy WebSocket connected');
-        this.subscribeToLogs();
+        this.subscribeToPendingTransactions();
         this.startPing();
         resolve();
       });
@@ -80,152 +122,128 @@ export class AlchemyMonitor {
     });
   }
 
-  private subscribeToLogs(): void {
+  /**
+   * Send alchemy_pendingTransactions subscription.
+   *
+   * Request shape (per Alchemy docs):
+   * {
+   *   jsonrpc: "2.0",
+   *   id: <n>,
+   *   method: "eth_subscribe",
+   *   params: [
+   *     "alchemy_pendingTransactions",
+   *     {
+   *       fromAddress: "<TARGET_WALLET>",          // address we are copy-trading
+   *       toAddress:   ["<CTF>", "<NEGRISK>"],     // Polymarket exchange contracts
+   *       hashesOnly:  false                       // receive full tx objects
+   *     }
+   *   ]
+   * }
+   *
+   * Max 1 000 addresses allowed per filter per Alchemy docs.
+   */
+  private subscribeToPendingTransactions(): void {
     if (!this.ws) return;
+
+    const targetWallet = config.targetWallet.toLowerCase();
 
     const req = {
       jsonrpc: '2.0',
       id: this.reqId++,
       method: 'eth_subscribe',
       params: [
-        'logs',
+        'alchemy_pendingTransactions',
         {
-          address: [
-            config.contracts.exchange,
-            config.contracts.negRiskExchange,
-          ],
-          topics: [ORDER_FILLED_TOPIC],
+          fromAddress: targetWallet,
+          toAddress: Array.from(EXCHANGE_ADDRESSES),
+          hashesOnly: false,
         },
       ],
     };
 
     this.ws.send(JSON.stringify(req));
-    console.log('📡 Alchemy: subscribed to CTF Exchange OrderFilled logs');
+    console.log(`📡 Alchemy: subscribed to pending txns`);
+    console.log(`   fromAddress : ${targetWallet}`);
+    console.log(`   toAddress   : CTF Exchange + NegRisk Exchange`);
   }
 
   private handleMessage(raw: string): void {
     try {
       const msg = JSON.parse(raw);
 
-      // Subscription confirmation: { id, result: "0x..." }
+      // Subscription confirmation  →  { id, result: "0x<subId>" }
       if (msg.id && typeof msg.result === 'string' && !msg.params) {
         this.subscriptionId = msg.result;
-        console.log(`📡 Alchemy subscription active: ${this.subscriptionId}`);
+        console.log(`📡 Alchemy alchemy_pendingTransactions subscription active: ${this.subscriptionId}`);
         return;
       }
 
-      // Event push: { method: "eth_subscription", params: { subscription, result: log } }
+      // Event push  →  { method: "eth_subscription", params: { subscription, result: tx } }
       if (msg.method === 'eth_subscription' && msg.params?.result) {
-        this.handleLog(msg.params.result).catch((err) =>
-          console.error('Error handling Alchemy log:', err)
+        this.handlePendingTx(msg.params.result).catch((err) =>
+          console.error('Error handling Alchemy pending tx:', err),
         );
       }
     } catch {
-      // ignore unparseable frames
+      // ignore unparseable frames (e.g. plain pings)
     }
   }
 
-  private async handleLog(log: any): Promise<void> {
-    if (!Array.isArray(log.topics) || log.topics.length < 4) return;
-    if (log.topics[0]?.toLowerCase() !== ORDER_FILLED_TOPIC.toLowerCase()) return;
+  /**
+   * Process a full pending transaction object received from Alchemy.
+   *
+   * tx fields used:
+   *   tx.hash  — transaction hash (for dedup)
+   *   tx.from  — sender address (validated == targetWallet)
+   *   tx.to    — recipient address (validated in EXCHANGE_ADDRESSES)
+   *   tx.input — calldata (available for future decoding if needed)
+   */
+  private async handlePendingTx(tx: any): Promise<void> {
+    const txHash: string = tx.hash ?? '';
+    const from: string  = (tx.from ?? '').toLowerCase();
+    const to: string    = (tx.to   ?? '').toLowerCase();
 
-    // Decode indexed fields
-    // topics[1] = orderHash (bytes32)
-    // topics[2] = maker (address, zero-padded to 32 bytes)
-    // topics[3] = taker (address, zero-padded to 32 bytes)
-    const maker = ('0x' + log.topics[2].slice(26)).toLowerCase();
-    const taker = ('0x' + log.topics[3].slice(26)).toLowerCase();
+    if (!txHash) return;
 
+    // Alchemy can re-send the same pending tx when gas price bumps —
+    // deduplicate to avoid flooding the REST poller.
+    if (this.seenPendingTxs.has(txHash)) return;
+    this.seenPendingTxs.add(txHash);
+    this.pruneSeen();
+
+    // Belt-and-suspenders: the subscription filter already enforces these,
+    // but double-check here in case of any relay quirks.
     const targetLower = config.targetWallet.toLowerCase();
-    if (maker !== targetLower && taker !== targetLower) {
-      return;
-    }
-
-    // Decode non-indexed data: makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled, fee
-    let decoded: ethers.utils.Result;
-    try {
-      decoded = ethers.utils.defaultAbiCoder.decode(
-        ['uint256', 'uint256', 'uint256', 'uint256', 'uint256'],
-        log.data
-      );
-    } catch {
-      console.error('Alchemy: failed to decode OrderFilled log data');
-      return;
-    }
-
-    const [makerAssetId, takerAssetId, makerAmountFilled, takerAmountFilled] = decoded;
-
-    // Determine trade direction from target's perspective
-    // assetId = 0 means USDC (collateral); non-zero = conditional token (YES/NO share)
-    const isMaker = maker === targetLower;
-
-    let side: 'BUY' | 'SELL';
-    let tokenId: string;
-    let usdcAmount: ethers.BigNumber;
-    let tokenAmount: ethers.BigNumber;
-
-    if (isMaker) {
-      if (makerAssetId.eq(USDC_ASSET_ID)) {
-        // target gave USDC → BUY
-        side = 'BUY';
-        tokenId = takerAssetId.toString();
-        usdcAmount = makerAmountFilled;
-        tokenAmount = takerAmountFilled;
-      } else {
-        // target gave conditional tokens → SELL
-        side = 'SELL';
-        tokenId = makerAssetId.toString();
-        usdcAmount = takerAmountFilled;
-        tokenAmount = makerAmountFilled;
-      }
-    } else {
-      // target is taker
-      if (takerAssetId.eq(USDC_ASSET_ID)) {
-        // target gave USDC → BUY
-        side = 'BUY';
-        tokenId = makerAssetId.toString();
-        usdcAmount = takerAmountFilled;
-        tokenAmount = makerAmountFilled;
-      } else {
-        // target gave conditional tokens → SELL
-        side = 'SELL';
-        tokenId = takerAssetId.toString();
-        usdcAmount = makerAmountFilled;
-        tokenAmount = takerAmountFilled;
-      }
-    }
-
-    // USDC has 6 decimals; CTF tokens also use 6 decimals on Polygon
-    const usdcFloat = parseFloat(ethers.utils.formatUnits(usdcAmount, 6));
-    const tokenFloat = parseFloat(ethers.utils.formatUnits(tokenAmount, 6));
-    const price = tokenFloat > 0 ? usdcFloat / tokenFloat : 0;
-
-    const trade: Trade = {
-      txHash: log.transactionHash || `alchemy-${log.blockNumber}-${Date.now()}`,
-      timestamp: Date.now(), // block timestamp requires extra RPC call; REST poll will reconcile
-      market: log.address,
-      tokenId,
-      side,
-      price,
-      size: usdcFloat,
-      outcome: 'UNKNOWN', // YES/NO mapping requires Polymarket API lookup
-    };
+    if (from !== targetLower) return;
+    if (!EXCHANGE_ADDRESSES.has(to)) return;
 
     console.log(
-      `⚡ Alchemy on-chain trade: ${trade.side} ${trade.size.toFixed(2)} USDC @ ${trade.price.toFixed(3)} (token: ${tokenId.slice(0, 10)}...)`
+      `⚡ Alchemy mempool: ${from.slice(0, 10)}… → ${to.slice(0, 10)}… ` +
+      `tx=${txHash.slice(0, 14)}…`,
     );
 
-    if (this.onTradeCallback) {
-      await this.onTradeCallback(trade);
+    // Fire early-tx callback so index.ts can trigger an immediate REST poll.
+    // The REST poll returns the full Polymarket trade object (outcome, market, etc.).
+    if (this.onEarlyTxCallback) {
+      await this.onEarlyTxCallback(txHash, from, to);
     }
   }
+
+  private pruneSeen(): void {
+    if (this.seenPendingTxs.size > this.maxSeenTxs) {
+      const entries = Array.from(this.seenPendingTxs);
+      this.seenPendingTxs = new Set(entries.slice(-Math.floor(this.maxSeenTxs / 2)));
+    }
+  }
+
+  // ─── Lifecycle helpers ────────────────────────────────────────────────────
 
   private startPing(): void {
     this.pingInterval = setInterval(() => {
       if (this.ws && this.isConnected) {
         this.ws.ping();
       }
-    }, 30000);
+    }, 30_000);
   }
 
   private stopPing(): void {
@@ -244,7 +262,8 @@ export class AlchemyMonitor {
     this.reconnectAttempts++;
     const delay = this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts - 1);
     console.log(
-      `🔄 Alchemy reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`
+      `🔄 Alchemy reconnecting in ${delay / 1000}s ` +
+      `(attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})…`,
     );
 
     setTimeout(async () => {
@@ -267,11 +286,17 @@ export class AlchemyMonitor {
     console.log('🔌 Alchemy WebSocket closed');
   }
 
-  getConnectionStatus(): { connected: boolean; subscriptionId: string | null; reconnectAttempts: number } {
+  getConnectionStatus(): {
+    connected: boolean;
+    subscriptionId: string | null;
+    reconnectAttempts: number;
+    seenPendingTxs: number;
+  } {
     return {
       connected: this.isConnected,
       subscriptionId: this.subscriptionId,
       reconnectAttempts: this.reconnectAttempts,
+      seenPendingTxs: this.seenPendingTxs.size,
     };
   }
 }

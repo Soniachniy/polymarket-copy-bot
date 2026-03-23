@@ -9,8 +9,8 @@ import { RiskManager } from './risk-manager.js';
 
 class PolymarketCopyBot {
   private monitor: TradeMonitor;
-  private wsMonitor?: WebSocketMonitor;
-  private alchemyMonitor?: AlchemyMonitor;
+  private wsMonitor: WebSocketMonitor | undefined;
+  private alchemyMonitor: AlchemyMonitor | undefined;
   private executor: TradeExecutor;
   private positions: PositionTracker;
   private risk: RiskManager;
@@ -86,8 +86,11 @@ class PolymarketCopyBot {
     if (config.alchemy.enabled) {
       this.alchemyMonitor = new AlchemyMonitor();
       try {
-        await this.alchemyMonitor.initialize(this.handleNewTrade.bind(this));
-        console.log('✅ Alchemy monitor initialized (on-chain OrderFilled events)\n');
+        await this.alchemyMonitor.initialize(
+          this.handleNewTrade.bind(this),
+          this.handleEarlyTx.bind(this),
+        );
+        console.log('✅ Alchemy monitor initialized (alchemy_pendingTransactions — mempool detection)\n');
       } catch (error) {
         console.error('⚠️  Alchemy monitor initialization failed, continuing without it');
         console.error('   Error:', error);
@@ -178,6 +181,24 @@ class PolymarketCopyBot {
         console.log(`   Reason: ${error.message}`);
       }
       console.log(`📊 Session Stats: ${this.stats.tradesCopied}/${this.stats.tradesDetected} copied, ${this.stats.tradesFailed} failed`);
+    }
+  }
+
+  /**
+   * Called by AlchemyMonitor the moment a pending tx from the target wallet
+   * hits the mempool (before block confirmation).
+   *
+   * Immediately triggers a REST poll so we detect the resulting trade as fast
+   * as possible, without waiting for the next POLL_INTERVAL tick.
+   */
+  private async handleEarlyTx(txHash: string, from: string, to: string): Promise<void> {
+    console.log(`\n⚡ Early mempool signal: ${from.slice(0, 10)}… → ${to.slice(0, 10)}… (${txHash.slice(0, 14)}…)`);
+    console.log('   Triggering immediate REST poll…');
+    try {
+      await this.monitor.pollForNewTrades(this.handleNewTrade.bind(this));
+    } catch (error) {
+      // Non-fatal — the regular polling loop will catch it on the next tick
+      console.error('   Early poll failed:', error);
     }
   }
 
