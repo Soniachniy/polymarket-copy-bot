@@ -1,0 +1,15 @@
+services:
+  bot:
+    build: .
+    image: polymarket-copy-bot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Mount API creds file if it exists (generated via generate-api-creds)
+    volumes:
+      - ./.polymarket-api-creds:/app/.polymarket-api-creds:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
