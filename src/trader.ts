@@ -56,9 +56,22 @@ export class TradeExecutor {
   private readonly MIN_PRIORITY_FEE_GWEI = parseFloat(process.env.MIN_PRIORITY_FEE_GWEI || '30');
   private readonly MIN_MAX_FEE_GWEI = parseFloat(process.env.MIN_MAX_FEE_GWEI || '60');
 
-  constructor() {
-    this.provider = new ethers.providers.JsonRpcProvider(config.rpcUrl);
-    this.wallet = new ethers.Wallet(config.privateKey, this.provider);
+  private readonly cfg: typeof config;
+
+  constructor(overrides?: {
+    privateKey: string;
+    rpcUrl: string;
+    polymarketGeoToken?: string;
+    trading: typeof config.trading;
+    risk: typeof config.risk;
+    contracts?: typeof config.contracts;
+  }) {
+    this.cfg = overrides
+      ? { ...config, ...overrides, contracts: overrides.contracts ?? config.contracts }
+      : config;
+
+    this.provider = new ethers.providers.JsonRpcProvider(this.cfg.rpcUrl);
+    this.wallet = new ethers.Wallet(this.cfg.privateKey, this.provider);
 
     this.clobClient = new ClobClient(
       'https://clob.polymarket.com',
@@ -67,7 +80,7 @@ export class TradeExecutor {
       undefined,
       undefined,
       undefined,
-      config.polymarketGeoToken || undefined
+      this.cfg.polymarketGeoToken || undefined
     );
   }
   
@@ -145,7 +158,7 @@ export class TradeExecutor {
       },
       0,
       funderAddress,
-      config.polymarketGeoToken || undefined
+      this.cfg.polymarketGeoToken || undefined
     );
   }
 
@@ -166,7 +179,7 @@ export class TradeExecutor {
   }
   
   calculateCopySize(originalSize: number): number {
-    const { positionSizeMultiplier, maxTradeSize, minTradeSize, orderType } = config.trading;
+    const { positionSizeMultiplier, maxTradeSize, minTradeSize, orderType } = this.cfg.trading;
     let size = originalSize * positionSizeMultiplier;
     size = Math.min(size, maxTradeSize);
     const marketMin = orderType === 'FOK' || orderType === 'FAK' ? 1 : minTradeSize;
@@ -276,7 +289,7 @@ export class TradeExecutor {
     originalTrade: Trade,
     copyNotionalOverride?: number
   ): Promise<CopyExecutionResult> {
-    const orderType = config.trading.orderType;
+    const orderType = this.cfg.trading.orderType;
     const copyNotional = copyNotionalOverride ?? this.calculateCopySize(originalTrade.size);
 
     console.log(`📈 Executing copy trade (${orderType}):`);
@@ -397,7 +410,7 @@ export class TradeExecutor {
 
     this.ensureLiquidity(orderbook, originalTrade.side);
 
-    const { slippageTolerance } = config.trading;
+    const { slippageTolerance } = this.cfg.trading;
     const bestPrice = this.getBestPrice(orderbook, originalTrade.side, originalTrade.price);
     const limitPrice = this.applySlippage(bestPrice, originalTrade.side, slippageTolerance);
     const validatedPrice = await this.validatePrice(limitPrice, originalTrade.tokenId);
@@ -449,7 +462,7 @@ export class TradeExecutor {
 
     this.ensureLiquidity(orderbook, originalTrade.side);
 
-    const { slippageTolerance } = config.trading;
+    const { slippageTolerance } = this.cfg.trading;
     const bestPrice = this.getBestPrice(orderbook, originalTrade.side, originalTrade.price);
     const marketPrice = this.applySlippage(bestPrice, originalTrade.side, slippageTolerance);
     const validatedPrice = await this.validatePrice(marketPrice, originalTrade.tokenId);
@@ -494,10 +507,10 @@ export class TradeExecutor {
   private async validateBalance(requiredAmount: number, tokenId: string): Promise<void> {
     try {
       const metadata = await this.getMarketMetadata(tokenId);
-      const exchangeAddress = metadata.negRisk ? config.contracts.negRiskExchange : config.contracts.exchange;
+      const exchangeAddress = metadata.negRisk ? this.cfg.contracts.negRiskExchange : this.cfg.contracts.exchange;
 
-      const usdc = new ethers.Contract(config.contracts.usdc, this.ERC20_ABI, this.wallet);
-      const ctf = new ethers.Contract(config.contracts.ctf, this.CTF_ABI, this.wallet);
+      const usdc = new ethers.Contract(this.cfg.contracts.usdc, this.ERC20_ABI, this.wallet);
+      const ctf = new ethers.Contract(this.cfg.contracts.ctf, this.CTF_ABI, this.wallet);
       const decimals = await usdc.decimals();
       const required = ethers.utils.parseUnits(requiredAmount.toString(), decimals);
 
@@ -507,7 +520,7 @@ export class TradeExecutor {
         throw new Error(`not enough balance / allowance (USDC.e balance ${bal} < required ${requiredAmount})`);
       }
 
-      const allowanceCtf = await usdc.allowance(this.wallet.address, config.contracts.ctf);
+      const allowanceCtf = await usdc.allowance(this.wallet.address, this.cfg.contracts.ctf);
       if (allowanceCtf.lt(required)) {
         const allow = ethers.utils.formatUnits(allowanceCtf, decimals);
         throw new Error(`not enough balance / allowance (USDC.e allowance to CTF ${allow} < required ${requiredAmount})`);
@@ -574,8 +587,8 @@ export class TradeExecutor {
 
     console.log('🔐 Checking required token approvals (EOA mode)...');
 
-    const usdc = new ethers.Contract(config.contracts.usdc, this.ERC20_ABI, this.wallet);
-    const ctf = new ethers.Contract(config.contracts.ctf, this.CTF_ABI, this.wallet);
+    const usdc = new ethers.Contract(this.cfg.contracts.usdc, this.ERC20_ABI, this.wallet);
+    const ctf = new ethers.Contract(this.cfg.contracts.ctf, this.CTF_ABI, this.wallet);
 
     const maticBal = await this.provider.getBalance(this.wallet.address);
     const maticAmount = parseFloat(ethers.utils.formatEther(maticBal));
@@ -584,13 +597,13 @@ export class TradeExecutor {
     }
 
     const decimals = await usdc.decimals();
-    const minAllowance = ethers.utils.parseUnits(config.trading.maxTradeSize.toString(), decimals);
+    const minAllowance = ethers.utils.parseUnits(this.cfg.trading.maxTradeSize.toString(), decimals);
     const gasOverrides = await this.getGasOverrides();
 
     const usdcSpenders = [
-      { name: 'CTF', address: config.contracts.ctf },
-      { name: 'CTF Exchange', address: config.contracts.exchange },
-      { name: 'Neg Risk CTF Exchange', address: config.contracts.negRiskExchange },
+      { name: 'CTF', address: this.cfg.contracts.ctf },
+      { name: 'CTF Exchange', address: this.cfg.contracts.exchange },
+      { name: 'Neg Risk CTF Exchange', address: this.cfg.contracts.negRiskExchange },
     ];
 
     for (const spender of usdcSpenders) {
@@ -607,8 +620,8 @@ export class TradeExecutor {
     }
 
     const operators = [
-      { name: 'CTF Exchange', address: config.contracts.exchange },
-      { name: 'Neg Risk CTF Exchange', address: config.contracts.negRiskExchange },
+      { name: 'CTF Exchange', address: this.cfg.contracts.exchange },
+      { name: 'Neg Risk CTF Exchange', address: this.cfg.contracts.negRiskExchange },
     ];
 
     for (const operator of operators) {

@@ -35,6 +35,8 @@ const EXCHANGE_ADDRESSES = new Set<string>([
 ]);
 
 export class AlchemyMonitor {
+  private readonly alchemyWsUrl: string;
+  private readonly targetWallet: string;
   private ws: WebSocket | null = null;
   private subscriptionId: string | null = null;
   private onTradeCallback?: (trade: Trade) => Promise<void>;
@@ -49,6 +51,11 @@ export class AlchemyMonitor {
   // Dedup for pending txs — Alchemy may re-emit the same hash as price/nonce changes
   private seenPendingTxs = new Set<string>();
   private readonly maxSeenTxs = 5000;
+
+  constructor(cfg?: { alchemyWsUrl: string; targetWallet: string }) {
+    this.alchemyWsUrl = cfg?.alchemyWsUrl ?? config.alchemy.wsUrl;
+    this.targetWallet = cfg?.targetWallet ?? config.targetWallet;
+  }
 
   /**
    * @param onTrade     - Standard trade callback (shared with all monitor sources)
@@ -67,13 +74,13 @@ export class AlchemyMonitor {
   }
 
   private getWsUrl(): string {
-    if (!config.alchemy.wsUrl) {
+    if (!this.alchemyWsUrl) {
       throw new Error(
         'ALCHEMY_WS_URL is required when USE_ALCHEMY=true.\n' +
         'Set it in .env:  ALCHEMY_WS_URL=wss://polygon-mainnet.g.alchemy.com/v2/<API_KEY>',
       );
     }
-    return config.alchemy.wsUrl;
+    return this.alchemyWsUrl;
   }
 
   private async connect(): Promise<void> {
@@ -145,7 +152,7 @@ export class AlchemyMonitor {
   private subscribeToPendingTransactions(): void {
     if (!this.ws) return;
 
-    const targetWallet = config.targetWallet.toLowerCase();
+    const targetWallet = this.targetWallet.toLowerCase();
 
     const req = {
       jsonrpc: '2.0',
@@ -213,7 +220,7 @@ export class AlchemyMonitor {
 
     // Belt-and-suspenders: the subscription filter already enforces these,
     // but double-check here in case of any relay quirks.
-    const targetLower = config.targetWallet.toLowerCase();
+    const targetLower = this.targetWallet.toLowerCase();
     if (from !== targetLower) return;
     if (!EXCHANGE_ADDRESSES.has(to)) return;
 

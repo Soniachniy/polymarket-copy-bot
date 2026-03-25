@@ -3,13 +3,40 @@ services:
     build: .
     image: polymarket-copy-bot:latest
     restart: unless-stopped
-    env_file:
-      - .env
-    # Mount API creds file if it exists (generated via generate-api-creds)
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
-      - ./.polymarket-api-creds:/app/.polymarket-api-creds:ro
+      - bot-data:/data
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/auth/status', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
+
+  ui:
+    build: ./ui
+    image: polymarket-ui:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      bot:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  bot-data:
+    driver: local

@@ -17,6 +17,11 @@ export interface Trade {
 export class TradeMonitor {
   private lastProcessedTimestamp: number = 0;
   private processedTradeIds: Set<string> = new Set();
+  private readonly targetWallet: string;
+
+  constructor(cfg?: { targetWallet: string }) {
+    this.targetWallet = cfg?.targetWallet ?? config.targetWallet;
+  }
 
   async initialize(): Promise<void> {
     this.lastProcessedTimestamp = Date.now();
@@ -31,7 +36,7 @@ export class TradeMonitor {
         'https://data-api.polymarket.com/activity',
         {
           params: {
-            user: config.targetWallet.toLowerCase(),
+            user: this.targetWallet.toLowerCase(),
             type: 'TRADE',
             limit: 100,
             sortBy: 'TIMESTAMP',

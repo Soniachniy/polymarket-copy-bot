@@ -10,9 +10,11 @@ export interface RiskCheckResult {
 export class RiskManager {
   private sessionNotional = 0;
   private positions: PositionTracker;
+  private readonly riskCfg: { maxSessionNotional: number; maxPerMarketNotional: number };
 
-  constructor(positions: PositionTracker) {
+  constructor(positions: PositionTracker, cfg?: { risk: { maxSessionNotional: number; maxPerMarketNotional: number } }) {
     this.positions = positions;
+    this.riskCfg = cfg?.risk ?? config.risk;
   }
 
   checkTrade(trade: Trade, copyNotional: number): RiskCheckResult {
@@ -20,23 +22,23 @@ export class RiskManager {
       return { allowed: false, reason: 'Copy notional is <= 0' };
     }
 
-    if (config.risk.maxSessionNotional > 0) {
+    if (this.riskCfg.maxSessionNotional > 0) {
       const nextSession = this.sessionNotional + copyNotional;
-      if (nextSession > config.risk.maxSessionNotional) {
+      if (nextSession > this.riskCfg.maxSessionNotional) {
         return {
           allowed: false,
-          reason: `Session notional cap exceeded (${nextSession.toFixed(2)} > ${config.risk.maxSessionNotional})`,
+          reason: `Session notional cap exceeded (${nextSession.toFixed(2)} > ${this.riskCfg.maxSessionNotional})`,
         };
       }
     }
 
-    if (config.risk.maxPerMarketNotional > 0) {
+    if (this.riskCfg.maxPerMarketNotional > 0) {
       const current = this.positions.getNotional(trade.tokenId);
       const next = current + copyNotional;
-      if (next > config.risk.maxPerMarketNotional) {
+      if (next > this.riskCfg.maxPerMarketNotional) {
         return {
           allowed: false,
-          reason: `Per-market notional cap exceeded (${next.toFixed(2)} > ${config.risk.maxPerMarketNotional})`,
+          reason: `Per-market notional cap exceeded (${next.toFixed(2)} > ${this.riskCfg.maxPerMarketNotional})`,
         };
       }
     }
