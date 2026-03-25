@@ -140,20 +140,27 @@ export class AlchemyMonitor {
    *   params: [
    *     "alchemy_pendingTransactions",
    *     {
-   *       fromAddress: "<TARGET_WALLET>",          // address we are copy-trading
-   *       toAddress:   ["<CTF>", "<NEGRISK>"],     // Polymarket exchange contracts
-   *       hashesOnly:  false                       // receive full tx objects
+   *       fromAddress: "<TARGET_WALLET>",   // only txs sent BY the copy-traded wallet
+   *       hashesOnly:  false                // receive full tx objects
    *     }
    *   ]
    * }
    *
-   * Max 1 000 addresses allowed per filter per Alchemy docs.
+   * toAddress is intentionally omitted from the subscription filter.
+   * Including it would subscribe to ALL txs sent to the Polymarket exchange
+   * contracts (thousands per day), consuming the free-plan compute unit budget
+   * almost instantly. Instead we filter to CTF + NegRisk exchanges locally
+   * inside handlePendingTx, which costs zero additional CUs.
    */
   private subscribeToPendingTransactions(): void {
     if (!this.ws) return;
 
     const targetWallet = this.targetWallet.toLowerCase();
 
+    // Subscribe with fromAddress only — toAddress is filtered programmatically
+    // in handlePendingTx. Adding toAddress here would match ALL txs sent to the
+    // exchange contracts (not just from our target), which blows through the free
+    // plan compute unit limit very quickly.
     const req = {
       jsonrpc: '2.0',
       id: this.reqId++,
@@ -162,7 +169,6 @@ export class AlchemyMonitor {
         'alchemy_pendingTransactions',
         {
           fromAddress: targetWallet,
-          toAddress: Array.from(EXCHANGE_ADDRESSES),
           hashesOnly: false,
         },
       ],
@@ -171,7 +177,7 @@ export class AlchemyMonitor {
     this.ws.send(JSON.stringify(req));
     console.log(`📡 Alchemy: subscribed to pending txns`);
     console.log(`   fromAddress : ${targetWallet}`);
-    console.log(`   toAddress   : CTF Exchange + NegRisk Exchange`);
+    console.log(`   toAddress   : filtered programmatically (CTF + NegRisk exchanges)`);
   }
 
   private handleMessage(raw: string): void {
