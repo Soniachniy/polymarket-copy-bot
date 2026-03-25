@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import { Copy, Eye, EyeOff, RefreshCw, Upload } from 'lucide-react';
+import { Sparkles, Key, Copy, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { walletApi } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 
 interface Props { onNext: () => void; }
 
@@ -15,10 +11,14 @@ export default function Step1Wallet({ onNext }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  const getPassword = (): string => {
-    return sessionStorage.getItem('_wizpwd') ?? '';
+  const getPassword = () => sessionStorage.getItem('_wizpwd') ?? '';
+
+  const copyText = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
   };
 
   const handleGenerate = async () => {
@@ -53,128 +53,159 @@ export default function Step1Wallet({ onNext }: Props) {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (mode === 'generated' && generated) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Your New Wallet</CardTitle>
-          <CardDescription>
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <h1 className="font-sans text-[32px] font-semibold text-white leading-tight">Wallet Setup</h1>
+          <p className="font-mono text-[13px] text-[#6e6e6e] max-w-lg">
             Save your private key now — it will never be shown again.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-400">
-            ⚠️ Never share your private key. Anyone with it has full control of your funds.
+          </p>
+        </div>
+
+        <div className="bg-[#111111] border border-[#1A1A1A] p-6 space-y-5">
+          <h2 className="font-sans text-[15px] font-semibold text-white">Your New Wallet</h2>
+
+          <div className="space-y-1.5">
+            <label className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">WALLET ADDRESS</label>
+            <div className="flex items-center bg-black border border-[#1A1A1A] h-10 px-3.5 gap-2">
+              <span className="flex-1 font-mono text-[11px] text-[#BFFF00] truncate">{generated.address}</span>
+              <button onClick={() => copyText(generated.address, 'addr')} className="text-[#6e6e6e] hover:text-white shrink-0">
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {copied === 'addr' && <p className="font-mono text-[10px] text-[#BFFF00]">Copied!</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label>Wallet Address</Label>
-            <div className="flex gap-2">
-              <Input value={generated.address} readOnly className="font-mono text-xs" />
-              <Button size="icon" variant="outline" onClick={() => copyToClipboard(generated.address)}>
-                <Copy className="h-4 w-4" />
-              </Button>
+            <label className="font-mono text-[10px] font-medium text-[#FF4444] tracking-widest">
+              PRIVATE KEY — SAVE THIS NOW
+            </label>
+            <div className="flex items-center bg-black border border-[#FF4444] h-10 px-3.5 gap-2">
+              <span className="flex-1 font-mono text-[11px] text-[#999999] truncate">
+                {showKey ? generated.privateKey : '0x' + '•'.repeat(62)}
+              </span>
+              <button onClick={() => setShowKey(!showKey)} className="text-[#6e6e6e] hover:text-white shrink-0">
+                {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+              <button onClick={() => copyText(generated.privateKey, 'pk')} className="text-[#6e6e6e] hover:text-white shrink-0">
+                <Copy className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Private Key</Label>
-            <div className="flex gap-2">
-              <Input
-                value={showKey ? generated.privateKey : '••••••••••••••••••••••••••••••••'}
-                readOnly
-                className="font-mono text-xs"
-              />
-              <Button size="icon" variant="outline" onClick={() => setShowKey(!showKey)}>
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-              <Button size="icon" variant="outline" onClick={() => copyToClipboard(generated.privateKey)}>
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-            {copied && <p className="text-xs text-green-400">Copied!</p>}
+            {copied === 'pk' && <p className="font-mono text-[10px] text-[#BFFF00]">Copied!</p>}
           </div>
 
           {generated.mnemonic && (
             <div className="space-y-1.5">
-              <Label>Recovery Phrase (12 words)</Label>
-              <div className="rounded-md border border-input bg-background p-3 font-mono text-xs leading-relaxed">
+              <label className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">RECOVERY PHRASE</label>
+              <div className="bg-black border border-[#1A1A1A] p-3 font-mono text-[11px] text-[#999999] leading-relaxed">
                 {generated.mnemonic}
               </div>
             </div>
           )}
+        </div>
 
-          <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-            <p className="font-semibold text-foreground">To import into MetaMask:</p>
-            <ol className="list-decimal ml-4 space-y-0.5">
-              <li>Open MetaMask → click your account icon → Import Account</li>
-              <li>Paste your Private Key and click Import</li>
-            </ol>
-          </div>
-
-          <Button className="w-full" onClick={onNext}>
-            I saved my key — Continue
-          </Button>
-        </CardContent>
-      </Card>
+        <button
+          onClick={onNext}
+          className="flex items-center gap-2 h-12 px-8 bg-[#BFFF00] font-mono text-[13px] font-semibold text-black hover:bg-[#d4ff33] transition-colors"
+        >
+          I SAVED MY KEY — CONTINUE
+          <ArrowRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
     );
   }
 
   if (mode === 'import') {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Import Existing Wallet</CardTitle>
-          <CardDescription>Paste your private key (0x…). It will be encrypted and stored securely.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <h1 className="font-sans text-[32px] font-semibold text-white">Wallet Setup</h1>
+          <p className="font-mono text-[13px] text-[#6e6e6e] max-w-lg">
+            Paste your private key (0x + 64 hex chars). It will be encrypted with AES-256-GCM.
+          </p>
+        </div>
+
+        <div className="bg-[#111111] border border-[#1A1A1A] p-6 space-y-5">
           <div className="space-y-1.5">
-            <Label>Private Key</Label>
-            <Input
-              type="password"
-              placeholder="0x..."
-              value={importKey}
-              onChange={(e) => setImportKey(e.target.value)}
-              className="font-mono text-sm"
-            />
+            <label className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">PRIVATE KEY</label>
+            <div className="flex items-center bg-black border border-[#1A1A1A] h-11 px-3.5">
+              <input
+                type="password"
+                placeholder="0x..."
+                value={importKey}
+                onChange={(e) => setImportKey(e.target.value)}
+                className="flex-1 bg-transparent font-mono text-[13px] text-white placeholder:text-[#404040] outline-none"
+              />
+            </div>
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setMode('choose')}>Back</Button>
-            <Button className="flex-1" onClick={handleImport} disabled={loading}>
-              {loading ? 'Importing…' : 'Import Wallet'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          {error && <p className="font-mono text-xs text-[#FF4444]">{error}</p>}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setMode('choose')}
+            className="flex items-center justify-center h-12 px-8 bg-black border border-[#1A1A1A] font-mono text-[13px] font-medium text-[#6e6e6e] hover:border-[#404040] transition-colors"
+          >
+            BACK
+          </button>
+          <button
+            onClick={handleImport}
+            disabled={loading}
+            className="flex items-center gap-2 h-12 px-8 bg-[#BFFF00] font-mono text-[13px] font-semibold text-black hover:bg-[#d4ff33] transition-colors disabled:opacity-60"
+          >
+            {loading ? 'IMPORTING…' : 'IMPORT WALLET'}
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Set Up Your Wallet</CardTitle>
-        <CardDescription>
-          This wallet will execute copy trades on your behalf. It needs to be funded with MATIC (gas) and USDC.e.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button className="w-full h-12 text-base" onClick={handleGenerate} disabled={loading}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          {loading ? 'Generating…' : 'Generate New Wallet'}
-        </Button>
-        <Button variant="outline" className="w-full h-12 text-base" onClick={() => setMode('import')}>
-          <Upload className="mr-2 h-4 w-4" />
-          Import Existing Wallet
-        </Button>
-      </CardContent>
-    </Card>
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="font-sans text-[32px] font-semibold text-white">Wallet Setup</h1>
+        <p className="font-mono text-[13px] text-[#6e6e6e] max-w-lg">
+          Create a new wallet or import an existing private key. Your key is encrypted locally.
+        </p>
+      </div>
+
+      {error && <p className="font-mono text-xs text-[#FF4444]">{error}</p>}
+
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="text-left bg-[#111111] border-2 border-[#BFFF00] p-6 space-y-3 hover:bg-[#1a1a0a] transition-colors disabled:opacity-60"
+        >
+          <Sparkles className="w-6 h-6 text-[#BFFF00]" />
+          <div>
+            <p className="font-sans text-[16px] font-semibold text-white">
+              {loading ? 'Generating…' : 'Generate New Wallet'}
+            </p>
+            <p className="font-mono text-[12px] text-[#999999] mt-1 leading-relaxed">
+              Create a fresh Ethereum wallet. You'll receive a private key and recovery phrase.
+            </p>
+          </div>
+          <span className="inline-flex items-center px-2.5 py-1 bg-[#BFFF00] font-mono text-[9px] font-bold text-black tracking-wider">
+            RECOMMENDED
+          </span>
+        </button>
+
+        <button
+          onClick={() => setMode('import')}
+          className="text-left bg-[#111111] border border-[#1A1A1A] p-6 space-y-3 hover:border-[#404040] transition-colors"
+        >
+          <Key className="w-6 h-6 text-[#6e6e6e]" />
+          <div>
+            <p className="font-sans text-[16px] font-semibold text-white">Import Existing Wallet</p>
+            <p className="font-mono text-[12px] text-[#999999] mt-1 leading-relaxed">
+              Paste your private key (0x + 64 hex chars). It will be encrypted with AES-256-GCM.
+            </p>
+          </div>
+        </button>
+      </div>
+    </div>
   );
 }

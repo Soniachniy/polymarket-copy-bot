@@ -1,48 +1,61 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { LogOut, X, AlertTriangle, Loader2 } from 'lucide-react';
+import { Bot, LogOut, Copy, Square, Loader2, AlertTriangle, X } from 'lucide-react';
 import { useBotStatus } from '../hooks/useBotStatus';
 import { useConfig } from '../hooks/useConfig';
 import { wsClient } from '../lib/ws';
-import { authApi } from '../lib/api';
-import { Button } from '../components/ui/button';
-import StatusBar from './dashboard/StatusBar';
+import { authApi, botApi } from '../lib/api';
+import { useQueryClient as useQC } from '@tanstack/react-query';
 import StatsCards from './dashboard/StatsCards';
 import TradesFeed from './dashboard/TradesFeed';
 import WalletPanel from './dashboard/WalletPanel';
 import ConfigEditor from './dashboard/ConfigEditor';
+import StatusBar from './dashboard/StatusBar';
+import { formatUptime } from '../lib/utils';
 
 function ResetModal({ onConfirm, onCancel, loading }: { onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl">
-        <div className="flex items-start justify-between p-5 pb-3">
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span className="font-semibold text-foreground">Reset & Start Over?</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="bg-[#111111] border border-[#1A1A1A] w-full max-w-sm">
+        <div className="flex items-start justify-between p-5 pb-4 border-b border-[#1A1A1A]">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-[#FF4444] shrink-0" />
+            <span className="font-sans font-semibold text-white">Reset & Start Over?</span>
           </div>
-          <button onClick={onCancel} disabled={loading} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onCancel} disabled={loading} className="text-[#6e6e6e] hover:text-white transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 pb-5 space-y-4 text-sm text-muted-foreground">
-          <p>
-            This will <span className="text-destructive font-medium">permanently delete</span> all stored data:
+        <div className="p-5 space-y-4">
+          <p className="font-mono text-[12px] text-[#999999]">
+            This will <span className="text-[#FF4444] font-semibold">permanently delete</span> all stored data:
           </p>
-          <ul className="list-disc list-inside space-y-1 pl-1">
-            <li>Password</li>
-            <li>Wallet &amp; private key</li>
-            <li>Bot configuration</li>
-            <li>Target wallet settings</li>
+          <ul className="space-y-1 pl-3">
+            {['Password', 'Wallet & private key', 'Bot configuration', 'Target wallet settings'].map((item) => (
+              <li key={item} className="font-mono text-[11px] text-[#6e6e6e] flex items-center gap-2">
+                <span className="w-1 h-1 bg-[#404040] shrink-0" />
+                {item}
+              </li>
+            ))}
           </ul>
-          <p>The bot will be stopped. This cannot be undone.</p>
+          <p className="font-mono text-[11px] text-[#6e6e6e]">The bot will be stopped. This cannot be undone.</p>
           <div className="flex gap-2 pt-1">
-            <Button variant="outline" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
-            <Button variant="destructive" className="flex-1" onClick={onConfirm} disabled={loading}>
-              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : null}
+            <button
+              onClick={onCancel}
+              disabled={loading}
+              className="flex-1 h-10 bg-black border border-[#1A1A1A] font-mono text-[12px] font-medium text-[#6e6e6e] hover:border-[#404040] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={loading}
+              className="flex-1 h-10 bg-[#FF4444] font-mono text-[12px] font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {loading && <Loader2 className="h-3 w-3 animate-spin" />}
               {loading ? 'Resetting…' : 'Reset everything'}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -57,14 +70,13 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [showReset, setShowReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [addrCopied, setAddrCopied] = useState(false);
+
+  const isRunning = status?.status === 'running';
 
   const handleReset = async () => {
     setResetting(true);
-    try {
-      await authApi.wipe();
-    } catch {
-      // ignore — even if wipe fails partially, clear local state
-    }
+    try { await authApi.wipe(); } catch {}
     localStorage.removeItem('token');
     sessionStorage.removeItem('_wizpwd');
     wsClient.disconnect();
@@ -72,59 +84,88 @@ export default function DashboardPage() {
     navigate('/auth', { replace: true });
   };
 
+  const copyTarget = () => {
+    if (!cfg?.targetWallet) return;
+    navigator.clipboard.writeText(cfg.targetWallet);
+    setAddrCopied(true);
+    setTimeout(() => setAddrCopied(false), 2000);
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-black flex flex-col">
       {showReset && (
-        <ResetModal
-          onConfirm={handleReset}
-          onCancel={() => setShowReset(false)}
-          loading={resetting}
-        />
+        <ResetModal onConfirm={handleReset} onCancel={() => setShowReset(false)} loading={resetting} />
       )}
 
       {/* Header */}
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-[#1A1A1A] h-14 flex items-center gap-4 px-8 shrink-0">
+        {/* Logo */}
         <div className="flex items-center gap-2">
-          <span className="text-lg">🤖</span>
-          <span className="font-semibold text-sm">Polymarket Copy Bot</span>
+          <Bot className="w-4.5 h-4.5 text-[#BFFF00]" style={{ width: 18, height: 18 }} />
+          <span className="font-sans font-semibold text-[13px] text-white tracking-[3px]">COPY BOT</span>
         </div>
-        <div className="flex items-center gap-3">
-          {cfg?.targetWallet && (
-            <span className="text-xs text-muted-foreground font-mono">
-              Copying: {cfg.targetWallet.slice(0, 8)}…{cfg.targetWallet.slice(-4)}
-            </span>
-          )}
-          <button
-            onClick={() => setShowReset(true)}
-            className="text-muted-foreground hover:text-destructive transition-colors p-1 rounded"
-            title="Reset & start over"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
+
+        <div className="w-px h-5 bg-[#1A1A1A]" />
+
+        {/* Target address */}
+        {cfg?.targetWallet && (
+          <>
+            <span className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">TARGET</span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[12px] text-[#BFFF00]">
+                {cfg.targetWallet.slice(0, 6)}…{cfg.targetWallet.slice(-4)}
+              </span>
+              <button onClick={copyTarget} className="text-[#6e6e6e] hover:text-white transition-colors">
+                <Copy className="w-3 h-3" />
+              </button>
+              {addrCopied && <span className="font-mono text-[10px] text-[#BFFF00]">Copied!</span>}
+            </div>
+          </>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Status */}
+        <div className={`w-1.5 h-1.5 shrink-0 ${isRunning ? 'bg-[#BFFF00] animate-pulse' : 'bg-[#404040]'}`} />
+        <span className={`font-mono text-[11px] font-medium ${isRunning ? 'text-[#BFFF00]' : 'text-[#6e6e6e]'}`}>
+          {status?.status?.toUpperCase() ?? 'STOPPED'}
+        </span>
+        {isRunning && status?.startedAt && (
+          <span className="font-mono text-[11px] text-[#6e6e6e]">{formatUptime(status.startedAt)}</span>
+        )}
+
+        <div className="w-px h-5 bg-[#1A1A1A]" />
+
+        {/* Controls */}
+        <StatusBar status={status} compact />
+
+        <div className="w-px h-5 bg-[#1A1A1A]" />
+
+        <button
+          onClick={() => setShowReset(true)}
+          className="text-[#6e6e6e] hover:text-[#FF4444] transition-colors p-1"
+          title="Reset & start over"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </header>
 
-      <main className="max-w-6xl mx-auto p-4 space-y-4">
-        {/* Status bar */}
-        <StatusBar status={status} />
+      {/* Stats */}
+      <StatsCards stats={status?.stats} />
 
-        {/* Stats */}
-        <StatsCards stats={status?.stats} />
-
-        {/* Main content: trades feed + sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Trades feed — takes 2/3 */}
-          <div className="lg:col-span-2 space-y-4">
-            <TradesFeed />
-          </div>
-
-          {/* Sidebar — wallet + config */}
-          <div className="space-y-4">
-            <WalletPanel walletAddress={status?.walletAddress ?? cfg?.walletAddress ?? ''} />
-            <ConfigEditor />
-          </div>
+      {/* Main body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Trades feed (2/3) */}
+        <div className="flex-1 flex border-r border-[#1A1A1A] overflow-hidden">
+          <TradesFeed />
         </div>
-      </main>
+
+        {/* Right sidebar (fixed width) */}
+        <div className="w-80 flex flex-col gap-0 overflow-y-auto shrink-0">
+          <WalletPanel walletAddress={status?.walletAddress ?? cfg?.walletAddress ?? ''} />
+          <ConfigEditor />
+        </div>
+      </div>
     </div>
   );
 }

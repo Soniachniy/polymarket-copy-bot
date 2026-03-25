@@ -122,8 +122,9 @@ export function saveAuth(data: AuthData): void {
 // ── Private key encryption (AES-256-GCM + scrypt) ─────────────────────────
 // scrypt params: N=131072 (2^17), r=8, p=1 — ~0.5-1s per attempt on modern hardware,
 // making offline brute-force of the encrypted key infeasible with weak passwords.
+// maxmem: 256MB — required because 128*N*r = 128MB exceeds OpenSSL 3's default 32MB cap.
 
-const SCRYPT_PARAMS = { N: 131072, r: 8, p: 1 };
+const SCRYPT_PARAMS = { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 };
 
 interface EncryptedBlob {
   iv: string;
@@ -160,8 +161,8 @@ export function decryptPrivateKey(encrypted: string, password: string): string {
   const iv = Buffer.from(blob.iv, 'base64');
   const authTag = Buffer.from(blob.authTag, 'base64');
   const ciphertext = Buffer.from(blob.ciphertext, 'base64');
-  // Support v1 blobs (legacy default scrypt params) alongside v2
-  const params = blob.v === 2 ? SCRYPT_PARAMS : {};
+  // Support v1 blobs (legacy default scrypt params N=16384) alongside v2
+  const params = blob.v === 2 ? SCRYPT_PARAMS : { maxmem: 256 * 1024 * 1024 };
   const key = scryptSync(password, salt, 32, params) as Buffer;
   const decipher = createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(authTag);

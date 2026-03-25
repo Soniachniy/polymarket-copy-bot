@@ -4,24 +4,25 @@
 
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 6%;
-    --card-foreground: 213 31% 91%;
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
-    --ring: 224 76% 48%;
-    --primary: 224 76% 48%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 47% 11%;
-    --secondary-foreground: 213 31% 91%;
-    --muted: 223 47% 11%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 216 34% 17%;
-    --accent-foreground: 213 31% 91%;
-    --destructive: 0 63% 50%;
+    /* Pure black industrial terminal theme */
+    --background: 0 0% 0%;          /* #000000 */
+    --foreground: 0 0% 100%;        /* #FFFFFF */
+    --card: 0 0% 7%;                /* #111111 */
+    --card-foreground: 0 0% 100%;   /* #FFFFFF */
+    --border: 0 0% 10%;             /* #1A1A1A */
+    --input: 0 0% 10%;              /* #1A1A1A */
+    --ring: 75 100% 50%;            /* #BFFF00 lime */
+    --primary: 75 100% 50%;         /* #BFFF00 lime */
+    --primary-foreground: 0 0% 0%;  /* #000000 */
+    --secondary: 0 0% 10%;          /* #1A1A1A */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 0 0% 10%;              /* #1A1A1A */
+    --muted-foreground: 0 0% 43%;   /* #6e6e6e */
+    --accent: 0 0% 10%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 100% 63%;      /* #FF4444 */
     --destructive-foreground: 0 0% 100%;
-    --radius: 0.5rem;
+    --radius: 0rem;                 /* Sharp industrial edges */
   }
 
   * {
@@ -31,5 +32,10 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Mono font utility */
+  .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
   }
 }

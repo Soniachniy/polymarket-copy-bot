@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Save, ChevronDown, ChevronUp } from 'lucide-react';
+import { Settings, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { useConfig, useUpdateConfig } from '../../hooks/useConfig';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 
 export default function ConfigEditor() {
   const { data: cfg } = useConfig();
@@ -21,106 +17,142 @@ export default function ConfigEditor() {
   });
 
   useEffect(() => {
-    if (cfg) {
-      setForm({
-        positionMultiplier: cfg.positionMultiplier,
-        maxTradeSize: cfg.maxTradeSize,
-        minTradeSize: cfg.minTradeSize,
-        slippageTolerance: cfg.slippageTolerance,
-        orderType: cfg.orderType,
-        maxSessionNotional: cfg.maxSessionNotional,
-        maxPerMarketNotional: cfg.maxPerMarketNotional,
-      });
-    }
+    if (cfg) setForm({
+      positionMultiplier: cfg.positionMultiplier,
+      maxTradeSize: cfg.maxTradeSize,
+      minTradeSize: cfg.minTradeSize,
+      slippageTolerance: cfg.slippageTolerance,
+      orderType: cfg.orderType,
+      maxSessionNotional: cfg.maxSessionNotional,
+      maxPerMarketNotional: cfg.maxPerMarketNotional,
+    });
   }, [cfg]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const handleSave = () => update(form);
+  const inputCls = "w-full bg-black border border-[#1A1A1A] h-9 px-3 font-mono text-[12px] text-white outline-none focus:border-[#BFFF00] transition-colors";
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <button
-          className="flex items-center justify-between w-full text-left"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <CardTitle className="text-sm font-semibold">Trading Config</CardTitle>
-          {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </button>
-      </CardHeader>
+    <div className="border-b border-[#1A1A1A]">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-[#1A1A1A]/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Settings className="w-3.5 h-3.5 text-[#6e6e6e]" />
+          <span className="font-sans text-[14px] font-semibold text-white">Settings</span>
+        </div>
+        {expanded ? <ChevronUp className="w-3.5 h-3.5 text-[#6e6e6e]" /> : <ChevronDown className="w-3.5 h-3.5 text-[#6e6e6e]" />}
+      </button>
+
+      {!expanded && (
+        <div className="px-5 pb-4 space-y-1.5">
+          {[
+            { label: 'Position Multiplier', value: `${(form.positionMultiplier * 100).toFixed(0)}%` },
+            { label: 'Max Trade Size', value: `$${form.maxTradeSize}` },
+            { label: 'Order Type', value: form.orderType, highlight: true },
+          ].map((r) => (
+            <div key={r.label} className="flex items-center justify-between">
+              <span className="font-mono text-[11px] text-[#999999]">{r.label}</span>
+              <span className={`font-mono text-[11px] font-semibold ${r.highlight ? 'text-[#BFFF00]' : 'text-white'}`}>{r.value}</span>
+            </div>
+          ))}
+          <button
+            onClick={() => setExpanded(true)}
+            className="flex items-center justify-center gap-1.5 w-full h-8 mt-2 bg-black border border-[#1A1A1A] font-mono text-[11px] font-medium text-[#6e6e6e] hover:border-[#404040] transition-colors"
+          >
+            <Settings className="w-3 h-3" />
+            EDIT SETTINGS
+          </button>
+        </div>
+      )}
 
       {expanded && (
-        <CardContent className="space-y-4">
+        <div className="px-5 pb-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Position Multiplier</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">MULTIPLIER</label>
+              <input
                 type="number" step="0.01" min="0.01" max="1"
                 value={form.positionMultiplier}
                 onChange={(e) => set('positionMultiplier', parseFloat(e.target.value))}
-                className="h-8 text-sm"
+                className={inputCls}
               />
-              <p className="text-xs text-muted-foreground">Copy {(form.positionMultiplier * 100).toFixed(0)}% per trade</p>
+              <p className="font-mono text-[10px] text-[#6e6e6e]">
+                {(form.positionMultiplier * 100).toFixed(0)}% per trade
+              </p>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Max Trade (USDC)</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">MAX TRADE (USDC)</label>
+              <input
                 type="number" step="1" min="1"
                 value={form.maxTradeSize}
                 onChange={(e) => set('maxTradeSize', parseFloat(e.target.value))}
-                className="h-8 text-sm"
+                className={inputCls}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Min Trade (USDC)</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">MIN TRADE (USDC)</label>
+              <input
                 type="number" step="0.5" min="0.5"
                 value={form.minTradeSize}
                 onChange={(e) => set('minTradeSize', parseFloat(e.target.value))}
-                className="h-8 text-sm"
+                className={inputCls}
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Slippage</Label>
-              <Input
+            <div className="space-y-1.5">
+              <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">SLIPPAGE</label>
+              <input
                 type="number" step="0.005" min="0.005" max="0.1"
                 value={form.slippageTolerance}
                 onChange={(e) => set('slippageTolerance', parseFloat(e.target.value))}
-                className="h-8 text-sm"
+                className={inputCls}
               />
-              <p className="text-xs text-muted-foreground">{(form.slippageTolerance * 100).toFixed(1)}%</p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Order Type</Label>
-              <select
-                className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                value={form.orderType}
-                onChange={(e) => set('orderType', e.target.value as typeof form.orderType)}
-              >
-                <option value="FOK">FOK</option>
-                <option value="FAK">FAK</option>
-                <option value="LIMIT">LIMIT</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Session Cap (0=off)</Label>
-              <Input
-                type="number" step="10" min="0"
-                value={form.maxSessionNotional}
-                onChange={(e) => set('maxSessionNotional', parseFloat(e.target.value))}
-                className="h-8 text-sm"
-              />
+              <p className="font-mono text-[10px] text-[#6e6e6e]">{(form.slippageTolerance * 100).toFixed(1)}%</p>
             </div>
           </div>
 
-          <Button size="sm" className="w-full gap-2" onClick={handleSave} disabled={isPending}>
-            <Save className="h-3.5 w-3.5" />
-            {isPending ? 'Saving…' : isSuccess ? 'Saved!' : 'Save Changes'}
-          </Button>
-        </CardContent>
+          {/* Order type toggle */}
+          <div className="space-y-1.5">
+            <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">ORDER TYPE</label>
+            <div className="flex gap-2">
+              {(['FOK', 'FAK', 'LIMIT'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => set('orderType', t)}
+                  className={`flex-1 h-9 font-mono text-[11px] font-semibold transition-colors ${
+                    form.orderType === t ? 'bg-[#BFFF00] text-black' : 'bg-black border border-[#1A1A1A] text-[#6e6e6e] hover:border-[#404040]'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Session cap */}
+          <div className="space-y-1.5">
+            <label className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">SESSION CAP (0 = off)</label>
+            <input
+              type="number" step="10" min="0"
+              value={form.maxSessionNotional}
+              onChange={(e) => set('maxSessionNotional', parseFloat(e.target.value))}
+              className={inputCls}
+            />
+          </div>
+
+          <button
+            onClick={() => update(form)}
+            disabled={isPending}
+            className="flex items-center justify-center gap-2 w-full h-10 bg-[#BFFF00] font-mono text-[12px] font-semibold text-black hover:bg-[#d4ff33] transition-colors disabled:opacity-60"
+          >
+            <Save className="w-3.5 h-3.5" />
+            {isPending ? 'SAVING…' : isSuccess ? 'SAVED!' : 'SAVE CHANGES'}
+          </button>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }

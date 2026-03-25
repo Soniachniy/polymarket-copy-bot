@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Play } from 'lucide-react';
+import { Zap, ArrowLeft } from 'lucide-react';
 import { configApi, proxyApi, botApi } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 
 interface Props { onBack: () => void; }
 
@@ -23,6 +19,16 @@ function calcMedian(sizes: number[]): number {
   if (sizes.length === 0) return 50;
   const sorted = [...sizes].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)] ?? 50;
+}
+
+function FieldRow({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">{label}</label>
+      {children}
+      {hint && <p className="font-mono text-[11px] text-[#6e6e6e]">{hint}</p>}
+    </div>
+  );
 }
 
 export default function Step4Configure({ onBack }: Props) {
@@ -44,7 +50,6 @@ export default function Step4Configure({ onBack }: Props) {
     retry: false,
   });
 
-  // Calculate smart defaults from target wallet history
   useEffect(() => {
     if (!targetTrades || targetTrades.length === 0) return;
     const sizes = targetTrades.map((t) => parseFloat(t.usdcSize ?? '0')).filter((s) => s > 0);
@@ -73,81 +78,113 @@ export default function Step4Configure({ onBack }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Configure Copy Settings</CardTitle>
-        <CardDescription>
-          These defaults are calculated from the target wallet's recent trade history. You can adjust them.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Position Multiplier</Label>
-            <Input
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <h1 className="font-sans text-[32px] font-semibold text-white">Configure Trading</h1>
+        <p className="font-mono text-[13px] text-[#6e6e6e] max-w-[560px]">
+          Set your risk limits and execution preferences. These can be changed any time from the dashboard.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-6 gap-y-5">
+        <FieldRow label="POSITION MULTIPLIER" hint={`Copy ${(settings.positionMultiplier * 100).toFixed(0)}% of each target trade`}>
+          <div className="flex items-center bg-black border border-[#BFFF00] h-11 px-3.5 gap-2">
+            <input
               type="number" step="0.01" min="0.01" max="1"
               value={settings.positionMultiplier}
               onChange={(e) => set('positionMultiplier', parseFloat(e.target.value))}
+              className="flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
             />
-            <p className="text-xs text-muted-foreground">Copy {(settings.positionMultiplier * 100).toFixed(0)}% of each trade</p>
+            <span className="font-mono text-[11px] text-[#6e6e6e] shrink-0">× multiplier</span>
           </div>
-          <div className="space-y-1.5">
-            <Label>Max Trade Size (USDC)</Label>
-            <Input
-              type="number" step="1" min="1"
-              value={settings.maxTradeSize}
-              onChange={(e) => set('maxTradeSize', parseFloat(e.target.value))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Min Trade Size (USDC)</Label>
-            <Input
-              type="number" step="0.5" min="0.5"
-              value={settings.minTradeSize}
-              onChange={(e) => set('minTradeSize', parseFloat(e.target.value))}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Slippage Tolerance</Label>
-            <Input
+        </FieldRow>
+
+        <FieldRow label="SLIPPAGE TOLERANCE" hint={`${(settings.slippageTolerance * 100).toFixed(1)}% max slippage`}>
+          <div className="flex items-center bg-black border border-[#1A1A1A] h-11 px-3.5 gap-2 focus-within:border-[#BFFF00] transition-colors">
+            <input
               type="number" step="0.005" min="0.005" max="0.1"
               value={settings.slippageTolerance}
               onChange={(e) => set('slippageTolerance', parseFloat(e.target.value))}
+              className="flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
             />
-            <p className="text-xs text-muted-foreground">{(settings.slippageTolerance * 100).toFixed(1)}%</p>
+            <span className="font-mono text-[11px] text-[#6e6e6e] shrink-0">% slippage</span>
           </div>
-          <div className="space-y-1.5">
-            <Label>Order Type</Label>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={settings.orderType}
-              onChange={(e) => set('orderType', e.target.value as Settings['orderType'])}
-            >
-              <option value="FOK">FOK (fill-or-kill)</option>
-              <option value="FAK">FAK (fill-and-kill)</option>
-              <option value="LIMIT">LIMIT (GTC)</option>
-            </select>
+        </FieldRow>
+
+        <FieldRow label="MAX TRADE SIZE">
+          <div className="flex items-center bg-black border border-[#1A1A1A] h-11 px-3.5 gap-2 focus-within:border-[#BFFF00] transition-colors">
+            <input
+              type="number" step="1" min="1"
+              value={settings.maxTradeSize}
+              onChange={(e) => set('maxTradeSize', parseFloat(e.target.value))}
+              className="flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
+            />
+            <span className="font-mono text-[11px] text-[#6e6e6e] shrink-0">USDC</span>
           </div>
-          <div className="space-y-1.5">
-            <Label>Session Cap (USDC, 0=off)</Label>
-            <Input
+        </FieldRow>
+
+        <FieldRow label="MIN TRADE SIZE">
+          <div className="flex items-center bg-black border border-[#1A1A1A] h-11 px-3.5 gap-2 focus-within:border-[#BFFF00] transition-colors">
+            <input
+              type="number" step="0.5" min="0.5"
+              value={settings.minTradeSize}
+              onChange={(e) => set('minTradeSize', parseFloat(e.target.value))}
+              className="flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
+            />
+            <span className="font-mono text-[11px] text-[#6e6e6e] shrink-0">USDC</span>
+          </div>
+        </FieldRow>
+
+        <FieldRow label="ORDER TYPE">
+          <div className="flex gap-2">
+            {(['FOK', 'FAK', 'LIMIT'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => set('orderType', t)}
+                className={`flex-1 h-11 font-mono text-[12px] font-semibold transition-colors ${
+                  settings.orderType === t
+                    ? 'bg-[#BFFF00] text-black'
+                    : 'bg-black border border-[#1A1A1A] text-[#6e6e6e] hover:border-[#404040]'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </FieldRow>
+
+        <FieldRow label="SESSION CAP" hint="0 = no cap (unlimited)">
+          <div className="flex items-center bg-black border border-[#1A1A1A] h-11 px-3.5 gap-2 focus-within:border-[#BFFF00] transition-colors">
+            <input
               type="number" step="10" min="0"
               value={settings.maxSessionNotional}
               onChange={(e) => set('maxSessionNotional', parseFloat(e.target.value))}
+              className="flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
             />
+            <span className="font-mono text-[11px] text-[#6e6e6e] shrink-0">USDC</span>
           </div>
-        </div>
+        </FieldRow>
+      </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="font-mono text-xs text-[#FF4444]">{error}</p>}
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onBack}>Back</Button>
-          <Button className="flex-1 gap-2" onClick={handleStart} disabled={loading}>
-            <Play className="h-4 w-4" />
-            {loading ? 'Starting…' : 'Start Bot'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex gap-3">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 justify-center h-12 px-8 bg-black border border-[#1A1A1A] font-mono text-[13px] font-medium text-[#6e6e6e] hover:border-[#404040] transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          BACK
+        </button>
+        <button
+          onClick={handleStart}
+          disabled={loading}
+          className="flex items-center gap-2 h-12 px-10 bg-[#BFFF00] font-mono text-[13px] font-semibold text-black hover:bg-[#d4ff33] transition-colors disabled:opacity-60"
+        >
+          <Zap className="w-3.5 h-3.5" />
+          {loading ? 'STARTING…' : 'START BOT'}
+        </button>
+      </div>
+    </div>
   );
 }

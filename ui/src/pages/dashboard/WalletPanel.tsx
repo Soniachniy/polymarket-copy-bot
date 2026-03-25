@@ -3,9 +3,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useBalance } from '../../hooks/useBalance';
 import { walletApi } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { truncateAddress } from '../../lib/utils';
 
 interface Props { walletAddress: string; }
@@ -37,91 +34,110 @@ export default function WalletPanel({ walletAddress }: Props) {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">Your Wallet</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {walletAddress && (
-          <div className="flex flex-col items-center gap-2">
-            <div className="rounded-lg border border-border p-2 bg-white">
-              <QRCodeSVG value={walletAddress} size={100} />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-mono text-muted-foreground">{truncateAddress(walletAddress, 10)}</span>
-              <button onClick={() => copy(walletAddress)} className="text-muted-foreground hover:text-foreground">
-                <Copy className="h-3 w-3" />
-              </button>
-              {copied && <span className="text-xs text-green-400">Copied!</span>}
-            </div>
-          </div>
-        )}
+    <div className="border-b border-[#1A1A1A] p-5 space-y-4">
+      <p className="font-sans text-[14px] font-semibold text-white">Wallet</p>
 
-        {/* Balances */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border border-border bg-secondary/30 p-2.5 text-center">
-            <p className="text-xs text-muted-foreground">MATIC</p>
-            <p className="text-sm font-semibold">{balance?.maticBalance ?? '—'}</p>
+      {walletAddress && (
+        <div className="flex items-center gap-4">
+          {/* QR */}
+          <div className="bg-[#1A1A1A] p-2 shrink-0">
+            <QRCodeSVG value={walletAddress} size={64} bgColor="#1A1A1A" fgColor="#BFFF00" />
           </div>
-          <div className="rounded-md border border-border bg-secondary/30 p-2.5 text-center">
-            <p className="text-xs text-muted-foreground">USDC.e</p>
-            <p className="text-sm font-semibold">{balance?.usdcBalance ?? '—'}</p>
+          {/* Address */}
+          <div className="space-y-1 min-w-0">
+            <p className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">BOT ADDRESS</p>
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-[11px] text-[#BFFF00] truncate">{truncateAddress(walletAddress, 10)}</span>
+              <button onClick={() => copy(walletAddress)} className="text-[#6e6e6e] hover:text-white shrink-0">
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+            {copied && <p className="font-mono text-[10px] text-[#BFFF00]">Copied!</p>}
           </div>
         </div>
+      )}
 
-        <Button variant="outline" size="sm" className="w-full" onClick={() => refetch()}>
-          <RefreshCw className="h-3 w-3 mr-1.5" /> Refresh
-        </Button>
+      {/* Balances */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-black border border-[#1A1A1A] p-3 space-y-1">
+          <p className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">MATIC</p>
+          <p className="font-sans text-[18px] font-semibold text-white">{balance?.maticBalance ?? '—'}</p>
+        </div>
+        <div className="bg-black border border-[#1A1A1A] p-3 space-y-1">
+          <p className="font-mono text-[9px] font-medium text-[#6e6e6e] tracking-widest">USDC.e</p>
+          <p className="font-sans text-[18px] font-semibold text-[#BFFF00]">{balance?.usdcBalance ?? '—'}</p>
+        </div>
+      </div>
 
-        {/* Export private key */}
-        {!showExport && !exportedKey && (
-          <Button variant="ghost" size="sm" className="w-full text-muted-foreground text-xs" onClick={() => setShowExport(true)}>
-            Export private key
-          </Button>
-        )}
+      <button
+        onClick={() => refetch()}
+        className="flex items-center justify-center gap-1.5 w-full h-9 bg-black border border-[#1A1A1A] font-mono text-[11px] font-medium text-[#6e6e6e] hover:border-[#404040] transition-colors"
+      >
+        <RefreshCw className="w-3 h-3" />
+        REFRESH
+      </button>
 
-        {showExport && !exportedKey && (
-          <div className="space-y-2">
-            <Input
-              type="password"
-              placeholder="Enter password to export"
-              value={exportPwd}
-              onChange={(e) => setExportPwd(e.target.value)}
-              className="h-8 text-sm"
-              onKeyDown={(e) => e.key === 'Enter' && handleExport()}
-            />
-            {exportErr && <p className="text-xs text-destructive">{exportErr}</p>}
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => setShowExport(false)}>Cancel</Button>
-              <Button size="sm" className="flex-1" onClick={handleExport}>Reveal</Button>
-            </div>
+      {/* Export */}
+      {!showExport && !exportedKey && (
+        <button
+          onClick={() => setShowExport(true)}
+          className="w-full font-mono text-[11px] text-[#404040] hover:text-[#6e6e6e] transition-colors text-center py-1"
+        >
+          Export private key
+        </button>
+      )}
+
+      {showExport && !exportedKey && (
+        <div className="space-y-2">
+          <input
+            type="password"
+            placeholder="Enter password to export"
+            value={exportPwd}
+            onChange={(e) => setExportPwd(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleExport()}
+            className="w-full h-9 bg-black border border-[#1A1A1A] px-3 font-mono text-[12px] text-white placeholder:text-[#404040] outline-none focus:border-[#BFFF00] transition-colors"
+          />
+          {exportErr && <p className="font-mono text-[11px] text-[#FF4444]">{exportErr}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowExport(false)}
+              className="flex-1 h-9 bg-black border border-[#1A1A1A] font-mono text-[11px] text-[#6e6e6e] hover:border-[#404040] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleExport}
+              className="flex-1 h-9 bg-[#BFFF00] font-mono text-[11px] font-semibold text-black hover:bg-[#d4ff33] transition-colors"
+            >
+              Reveal
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {exportedKey && (
-          <div className="space-y-2">
-            <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-2 text-xs text-yellow-400">
-              ⚠️ Never share your private key.
-            </div>
-            <div className="flex gap-1.5">
-              <Input
-                value={showKey ? exportedKey : '••••••••••••••••••••••••••••••••'}
-                readOnly
-                className="font-mono text-xs h-8 flex-1"
-              />
-              <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setShowKey(!showKey)}>
-                {showKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              </Button>
-              <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => copy(exportedKey)}>
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
-            <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => setExportedKey('')}>
-              Hide
-            </Button>
+      {exportedKey && (
+        <div className="space-y-2">
+          <div className="bg-black border border-[#F59E0B]/30 p-2.5 font-mono text-[11px] text-[#F59E0B]">
+            ⚠ Never share your private key.
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="flex gap-1.5">
+            <div className="flex-1 bg-black border border-[#1A1A1A] h-9 px-2.5 flex items-center overflow-hidden">
+              <span className="font-mono text-[10px] text-[#999999] truncate">
+                {showKey ? exportedKey : '•'.repeat(32)}
+              </span>
+            </div>
+            <button onClick={() => setShowKey(!showKey)} className="w-9 h-9 bg-black border border-[#1A1A1A] flex items-center justify-center text-[#6e6e6e] hover:text-white">
+              {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+            <button onClick={() => copy(exportedKey)} className="w-9 h-9 bg-black border border-[#1A1A1A] flex items-center justify-center text-[#6e6e6e] hover:text-white">
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <button onClick={() => setExportedKey('')} className="w-full font-mono text-[11px] text-[#404040] hover:text-[#6e6e6e] transition-colors text-center py-1">
+            Hide
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

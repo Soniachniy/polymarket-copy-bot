@@ -1,5 +1,4 @@
-import { TrendingUp, Copy, XCircle, DollarSign } from 'lucide-react';
-import { Card, CardContent } from '../../components/ui/card';
+import { TrendingUp, CircleCheck, CircleX, DollarSign } from 'lucide-react';
 import { formatUsdc } from '../../lib/utils';
 import type { BotStatusPayload } from '../../lib/api';
 
@@ -9,24 +8,23 @@ export default function StatsCards({ stats }: Props) {
   const s = stats ?? { tradesDetected: 0, tradesCopied: 0, tradesFailed: 0, totalVolume: 0 };
 
   const cards = [
-    { label: 'Detected', value: s.tradesDetected, icon: TrendingUp, color: 'text-blue-400' },
-    { label: 'Copied', value: s.tradesCopied, icon: Copy, color: 'text-green-400' },
-    { label: 'Failed', value: s.tradesFailed, icon: XCircle, color: 'text-red-400' },
-    { label: 'Volume', value: formatUsdc(s.totalVolume), icon: DollarSign, color: 'text-yellow-400' },
+    { label: 'DETECTED', value: s.tradesDetected, icon: TrendingUp, color: 'text-[#3B82F6]', sub: 'Target trades found' },
+    { label: 'COPIED', value: s.tradesCopied, icon: CircleCheck, color: 'text-[#BFFF00]', sub: 'Successfully executed', highlight: true },
+    { label: 'FAILED', value: s.tradesFailed, icon: CircleX, color: 'text-[#FF4444]', sub: 'Failed or skipped' },
+    { label: 'VOLUME', value: formatUsdc(s.totalVolume), icon: DollarSign, color: 'text-[#F59E0B]', sub: 'Total notional copied' },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="grid grid-cols-4 border-b border-[#1A1A1A] divide-x divide-[#1A1A1A]">
       {cards.map((c) => (
-        <Card key={c.label}>
-          <CardContent className="p-4 flex items-center gap-3">
-            <c.icon className={`h-5 w-5 shrink-0 ${c.color}`} />
-            <div>
-              <p className="text-xs text-muted-foreground">{c.label}</p>
-              <p className="text-lg font-semibold">{c.value}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div key={c.label} className="px-6 py-5 space-y-1.5 bg-black">
+          <p className="font-mono text-[10px] font-medium text-[#6e6e6e] tracking-widest">{c.label}</p>
+          <div className="flex items-center gap-2">
+            <p className={`font-sans text-[32px] font-semibold ${c.highlight ? 'text-[#BFFF00]' : 'text-white'}`}>{c.value}</p>
+            <c.icon className={`w-4.5 h-4.5 ${c.color}`} style={{ width: 18, height: 18 }} />
+          </div>
+          <p className="font-mono text-[11px] text-[#6e6e6e]">{c.sub}</p>
+        </div>
       ))}
     </div>
   );

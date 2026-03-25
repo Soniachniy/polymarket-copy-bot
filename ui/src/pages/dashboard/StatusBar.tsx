@@ -1,57 +1,56 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Play, Square, Loader2, X, AlertTriangle } from 'lucide-react';
+import { Square, Play, Loader2, AlertTriangle, X } from 'lucide-react';
 import { botApi } from '../../lib/api';
-import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
-import { Input } from '../../components/ui/input';
-import { formatUptime } from '../../lib/utils';
 import type { BotStatusPayload } from '../../lib/api';
 
-interface Props { status: BotStatusPayload | undefined; }
+interface Props { status: BotStatusPayload | undefined; compact?: boolean; }
 
 function ApprovalModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-xl">
-        <div className="flex items-start justify-between p-5 pb-3">
-          <div className="flex items-center gap-2 text-yellow-400">
-            <AlertTriangle className="h-5 w-5 shrink-0" />
-            <span className="font-semibold text-foreground">USDC Approval Required</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="bg-[#111111] border border-[#1A1A1A] w-full max-w-md">
+        <div className="flex items-start justify-between p-5 pb-4 border-b border-[#1A1A1A]">
+          <div className="flex items-center gap-2 text-[#F59E0B]">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="font-sans font-semibold text-white">USDC Approval Required</span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={onClose} className="text-[#6e6e6e] hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-5 pb-5 space-y-3 text-sm text-muted-foreground">
-          <p>
-            Your wallet needs to approve USDC spending before the bot can place orders on Polymarket.
-            This is a one-time on-chain transaction that costs a small amount of MATIC for gas.
+        <div className="p-5 space-y-3">
+          <p className="font-mono text-[12px] text-[#999999]">
+            Your wallet needs to approve USDC spending before the bot can place orders. This is a one-time on-chain transaction that costs a small amount of MATIC for gas.
           </p>
-          <p className="font-medium text-foreground">What you need to do:</p>
-          <ol className="list-decimal list-inside space-y-1.5 pl-1">
-            <li>Make sure your wallet has <span className="text-foreground font-medium">MATIC</span> for gas fees (~0.01 MATIC is enough)</li>
-            <li>Go to <span className="text-foreground font-medium">polymarket.com</span> and connect your wallet</li>
-            <li>Deposit any amount of USDC — this triggers the approval transaction automatically</li>
-            <li>Once approved, come back here and start the bot</li>
+          <ol className="space-y-1.5 pl-3">
+            {[
+              'Ensure your wallet has MATIC for gas (~0.01 MATIC)',
+              'Go to polymarket.com and connect your wallet',
+              'Deposit any amount of USDC to trigger approval',
+              'Come back here and start the bot',
+            ].map((s, i) => (
+              <li key={i} className="font-mono text-[11px] text-[#999999] flex gap-2">
+                <span className="text-[#BFFF00] shrink-0">{i + 1}.</span>
+                {s}
+              </li>
+            ))}
           </ol>
-          <div className="rounded-lg bg-yellow-400/10 border border-yellow-400/20 p-3 text-xs">
-            <span className="font-medium text-yellow-400">Tip:</span> The bot also needs USDC in your wallet to copy trades.
-            Fund it via the Wallet panel on the right.
-          </div>
-          <Button className="w-full mt-1" onClick={onClose}>Got it</Button>
+          <button onClick={onClose} className="w-full h-10 bg-[#BFFF00] font-mono text-[12px] font-semibold text-black hover:bg-[#d4ff33] transition-colors mt-2">
+            Got it
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function isApprovalError(msg: string): boolean {
-  const lower = msg.toLowerCase();
-  return lower.includes('allowance') || lower.includes('approval') || lower.includes('approve') || lower.includes('not enough balance');
+function isApprovalError(msg: string) {
+  const l = msg.toLowerCase();
+  return l.includes('allowance') || l.includes('approval') || l.includes('approve') || l.includes('not enough balance');
 }
 
-export default function StatusBar({ status }: Props) {
+export default function StatusBar({ status, compact }: Props) {
   const qc = useQueryClient();
   const [showPwd, setShowPwd] = useState(false);
   const [password, setPassword] = useState('');
@@ -84,9 +83,7 @@ export default function StatusBar({ status }: Props) {
     } catch (err: any) {
       const msg: string = err?.response?.data?.error ?? 'Failed to start';
       setError(msg);
-      if (isApprovalError(msg)) {
-        setShowApproval(true);
-      }
+      if (isApprovalError(msg)) setShowApproval(true);
     } finally {
       setLoading(false);
     }
@@ -96,59 +93,43 @@ export default function StatusBar({ status }: Props) {
     <>
       {showApproval && <ApprovalModal onClose={() => setShowApproval(false)} />}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className={`h-2.5 w-2.5 rounded-full ${isRunning ? 'bg-green-400 animate-pulse' : isTransitioning ? 'bg-yellow-400 animate-pulse' : 'bg-muted-foreground'}`} />
-          <span className="font-semibold text-sm">
-            {isRunning ? 'Running' : isTransitioning ? (status?.status === 'starting' ? 'Starting…' : 'Stopping…') : 'Stopped'}
-          </span>
-          {isRunning && status?.startedAt && (
-            <Badge variant="outline" className="text-xs text-muted-foreground">
-              ⏱ {formatUptime(status.startedAt)}
-            </Badge>
-          )}
-        </div>
+      <div className="flex items-center gap-3">
+        {showPwd && !isRunning && (
+          <div className="flex items-center gap-2">
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+              autoFocus
+              className="h-8 w-32 bg-black border border-[#1A1A1A] px-2.5 font-mono text-[12px] text-white placeholder:text-[#404040] outline-none focus:border-[#BFFF00] transition-colors"
+            />
+            {error && (
+              <span className="font-mono text-[10px] text-[#FF4444] max-w-[120px] truncate">{error}</span>
+            )}
+          </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          {showPwd && !isRunning && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-8 w-32 text-sm"
-                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-                autoFocus
-              />
-              {error && (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-destructive max-w-[160px] truncate">{error}</span>
-                  {isApprovalError(error) && (
-                    <button
-                      onClick={() => setShowApproval(true)}
-                      className="text-xs text-yellow-400 underline whitespace-nowrap"
-                    >
-                      Learn more
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isRunning ? (
-            <Button size="sm" variant="destructive" onClick={handleStop} disabled={loading || isTransitioning}>
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Square className="h-3 w-3" />}
-              <span className="ml-1.5">Stop</span>
-            </Button>
-          ) : (
-            <Button size="sm" onClick={handleStart} disabled={loading || isTransitioning}>
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-              <span className="ml-1.5">Start</span>
-            </Button>
-          )}
-        </div>
+        {isRunning ? (
+          <button
+            onClick={handleStop}
+            disabled={loading || isTransitioning}
+            className="flex items-center gap-1.5 h-8 px-3.5 bg-black border border-[#FF4444] font-mono text-[12px] font-medium text-[#FF4444] hover:bg-[#FF4444]/10 transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
+            STOP
+          </button>
+        ) : (
+          <button
+            onClick={handleStart}
+            disabled={loading || isTransitioning}
+            className="flex items-center gap-1.5 h-8 px-3.5 bg-[#BFFF00] font-mono text-[12px] font-semibold text-black hover:bg-[#d4ff33] transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            {isTransitioning ? (status?.status === 'starting' ? 'STARTING…' : 'STOPPING…') : 'START'}
+          </button>
+        )}
       </div>
     </>
   );
