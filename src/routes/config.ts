@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { loadConfig, saveConfig } from '../persistent-config.js';
 import type { AppConfig } from '../persistent-config.js';
 
-function sanitize(cfg: AppConfig): Omit<AppConfig, 'encryptedPrivateKey' | 'jwtSecret'> {
-  const { encryptedPrivateKey: _k, jwtSecret: _s, ...safe } = cfg;
+function sanitize(cfg: AppConfig): Omit<AppConfig, 'encryptedPrivateKey'> {
+  const { encryptedPrivateKey: _k, ...safe } = cfg;
   return safe;
 }
 

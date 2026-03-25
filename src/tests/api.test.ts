@@ -10,16 +10,45 @@ let authStore: Record<string, unknown> | null = null;
 
 vi.mock('../persistent-config.js', async () => {
   const real = await vi.importActual<typeof import('../persistent-config.js')>('../persistent-config.js');
+
+  // Use fast scrypt params (N=1024) in tests to avoid 1s+ delays
+  const { createCipheriv, createDecipheriv, randomBytes, scryptSync } = await import('crypto');
+  const FAST_PARAMS = { N: 1024, r: 8, p: 1 };
+  function fastEncrypt(privateKey: string, password: string): string {
+    const salt = randomBytes(16);
+    const iv = randomBytes(12);
+    const key = scryptSync(password, salt, 32, FAST_PARAMS) as Buffer;
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const ct = Buffer.concat([cipher.update(privateKey, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return Buffer.from(JSON.stringify({
+      iv: iv.toString('base64'), salt: salt.toString('base64'),
+      authTag: tag.toString('base64'), ciphertext: ct.toString('base64'), v: 99,
+    })).toString('base64');
+  }
+  function fastDecrypt(encrypted: string, password: string): string {
+    const b = JSON.parse(Buffer.from(encrypted, 'base64').toString('utf8'));
+    const key = scryptSync(password, Buffer.from(b.salt, 'base64'), 32, FAST_PARAMS) as Buffer;
+    const d = createDecipheriv('aes-256-gcm', key, Buffer.from(b.iv, 'base64'));
+    d.setAuthTag(Buffer.from(b.authTag, 'base64'));
+    return d.update(Buffer.from(b.ciphertext, 'base64')) + d.final('utf8');
+  }
+
+  let _secret: string | null = null;
   return {
     ...real,
+    getJwtSecret: () => { if (!_secret) _secret = randomBytes(32).toString('hex'); return _secret; },
     loadConfig: () => (Object.keys(configStore).length > 0 ? configStore : null),
     saveConfig: (partial: Record<string, unknown>) => {
-      configStore = { ...configStore, ...partial };
+      const { jwtSecret: _ignored, ...safe } = partial as any;
+      configStore = { ...configStore, ...safe };
       return configStore;
     },
     loadAuth: () => authStore,
     saveAuth: (data: Record<string, unknown>) => { authStore = data; },
-    wipeAllData: () => { configStore = {}; authStore = null; },
+    wipeAllData: () => { configStore = {}; authStore = null; _secret = null; },
+    encryptPrivateKey: fastEncrypt,
+    decryptPrivateKey: fastDecrypt,
   };
 });
 
