@@ -1,5 +1,0 @@
-timestamp,action,marketId,price,shares,pnl,balance,btcPrice,reason
-1774610353179,BUY_YES,paper-mkt-2,0.515213,3.8819,0.0000,5.0000,66709.99,"combined=$0.9700 cost=$3.77 shares=3.88 vol=0.011%"
-1774610353179,BUY_NO,paper-mkt-2,0.454787,3.8819,0.0000,5.0000,66709.99,"strike=$66693.85"
-1774610434256,SELL_NO,paper-mkt-2,0.548766,3.8819,0.3648,5.3648,66662.35,"profit=20.7%"
-1774610464954,SELL_YES,paper-mkt-2,0.540080,3.8819,0.0965,5.4613,66720.66,"session end — force sell"

@@ -277,6 +277,14 @@ class SniperEngine {
     this.binanceFeed.close();
   }
 
+  shutdown(): void {
+    console.log('\n\n⚠️  Interrupted — saving session...');
+    this.stop();
+    this.resolveAllPositions();
+    this.printFinalReport();
+    this.saveResults();
+  }
+
   private getAvailableBalance(): number {
     return Math.max(0, this.balance - this.lockedInPositions);
   }
@@ -743,8 +751,18 @@ class SniperEngine {
 const config = loadConfig();
 const engine = new SniperEngine(config);
 
+let shutdownRequested = false;
 process.on('SIGINT', () => {
-  console.log('\n\n⚠️  Interrupted — closing...');
+  if (shutdownRequested) {
+    console.log('\nForce exit.');
+    process.exit(1);
+  }
+  shutdownRequested = true;
+  engine.shutdown();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  engine.shutdown();
   process.exit(0);
 });
 

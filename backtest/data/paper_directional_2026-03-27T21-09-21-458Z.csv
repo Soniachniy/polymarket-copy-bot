@@ -1,5 +1,0 @@
-timestamp,action,conditionId,question,side,entryPrice,exitPrice,shares,pnl,balance,btcPrice,reason
-1774645248476,BUY_UP,0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497,"Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",up,0.495000,0.495000,12.1212,0.0000,15.0000,66034.89,"trend=+0.67$/s vol=0.007% TTL=252s"
-1774645314500,SELL_TP,0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497,"Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",up,0.495000,0.635000,12.1212,1.6970,16.6970,66041.90,"take profit 28.3% | price $0.4950→$0.6350"
-1774645536570,BUY_DOWN,0xbc992c2faf147704a4d0075fca2df32acc4e0c96bec55d51e80a4ab52e7dc804,"Bitcoin Up or Down - March 27, 5:05PM-5:10PM ET",down,0.485000,0.485000,13.7707,0.0000,16.6970,66086.92,"trend=-0.60$/s vol=0.006% TTL=263s"
-1774645755634,PANIC_SELL,0xbc992c2faf147704a4d0075fca2df32acc4e0c96bec55d51e80a4ab52e7dc804,"Bitcoin Up or Down - March 27, 5:05PM-5:10PM ET",down,0.485000,0.485000,13.7707,0.0000,16.6970,66098.17,"panic TTL=44s price=$0.4850"

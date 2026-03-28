@@ -1,3 +1,0 @@
-timestamp,action,conditionId,question,side,entryPrice,exitPrice,shares,pnl,balance,btcPrice,reason
-1774645972171,BUY_UP,0x5cc887edda47160d59afc68a848ef276b1d159c1bb0f6027a8a25a1d49dfdac6,"Bitcoin Up or Down - March 27, 5:15PM-5:20PM ET",up,0.505000,0.505000,11.8812,0.0000,15.0000,66133.84,"trend=+0.60$/s vol=0.007% TTL=428s"
-1774646071167,SESSION_END,0x5cc887edda47160d59afc68a848ef276b1d159c1bb0f6027a8a25a1d49dfdac6,"Bitcoin Up or Down - March 27, 5:15PM-5:20PM ET",up,0.505000,0.495000,11.8812,-0.1188,14.8812,66124.78,"session end — force sell at Gamma price $0.4950"
