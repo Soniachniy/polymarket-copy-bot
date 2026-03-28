@@ -13,7 +13,11 @@
     "build": "tsc",
     "start:prod": "node dist/api-server.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "backtest:collect": "tsx src/backtest/collect-prices.ts",
+    "backtest:optimize": "tsx src/backtest/optimize-params.ts",
+    "paper-trade": "tsx src/backtest/paper-trade.ts",
+    "sniper": "tsx src/backtest/sniper-paper.ts"
   },
   "keywords": [],
   "author": "",

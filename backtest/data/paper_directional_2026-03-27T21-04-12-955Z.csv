@@ -1,0 +1,3 @@
+timestamp,action,conditionId,question,side,entryPrice,exitPrice,shares,pnl,balance,btcPrice,reason
+1774645212971,BUY_DOWN,0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497,"Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",down,0.505000,0.505000,11.8812,0.0000,15.0000,66013.01,"trend=-1.24$/s vol=0.005% TTL=287s"
+1774645315003,SELL_SL,0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497,"Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",down,0.505000,0.365000,11.8812,-1.6634,13.3366,66041.90,"stop loss 27.7% | price $0.5050→$0.3650"

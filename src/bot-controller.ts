@@ -26,6 +26,14 @@ export interface CopiedTradeRecord {
   executedAt: string;
 }
 
+export interface VolatilityStatsPayload {
+  openPositions: number;
+  totalEntries: number;
+  totalExits: number;
+  totalMerges: number;
+  realizedPnL: number;
+}
+
 export interface StatusPayload {
   status: BotStatus;
   startedAt: string | null;
@@ -35,6 +43,7 @@ export interface StatusPayload {
     tradesFailed: number;
     totalVolume: number;
   };
+  volatilityStats: VolatilityStatsPayload | null;
   walletAddress: string;
   setupComplete: boolean;
 }
@@ -104,6 +113,12 @@ export class BotController extends EventEmitter {
       this.emit('trade:skipped', record);
     });
 
+    // Volatility strategy events
+    this.bot.on('vol:entry', (data) => this.emit('vol:entry', data));
+    this.bot.on('vol:entry:failed', (data) => this.emit('vol:entry:failed', data));
+    this.bot.on('vol:exit', (data) => this.emit('vol:exit', data));
+    this.bot.on('vol:merge', (data) => this.emit('vol:merge', data));
+
     try {
       await this.bot.initialize();
     } catch (err) {
@@ -144,6 +159,7 @@ export class BotController extends EventEmitter {
       status: this.status,
       startedAt: this.startedAt?.toISOString() ?? null,
       stats: this.bot?.getStats() ?? { tradesDetected: 0, tradesCopied: 0, tradesFailed: 0, totalVolume: 0 },
+      volatilityStats: this.bot?.getVolatilityStats() ?? null,
       walletAddress: appConfig?.walletAddress ?? '',
       setupComplete: appConfig?.setupComplete ?? false,
     };

@@ -1,0 +1,79 @@
+{
+  "dataSource": "REAL_POLYMARKET_MERGE_HYBRID",
+  "config": {
+    "startingBalance": 15,
+    "positionSizePct": 0.4,
+    "minPositionSize": 0.5,
+    "sessionStopLossPct": 50,
+    "maxOpenPositions": 1,
+    "maxEntryPrice": 0.55,
+    "takeProfitPct": 12,
+    "stopLossPct": 15,
+    "trendWindowMs": 30000,
+    "minTrendStrength": 0.5,
+    "minTtlMs": 150000,
+    "maxTtlMs": 600000,
+    "panicExitSeconds": 45,
+    "minVolatility": 0.00005,
+    "volatilityWarmupMs": 15000,
+    "reversalExitUsd": 80,
+    "cooldownAfterStopLossMs": 30000,
+    "cooldownAfterLossMs": 10000,
+    "scanIntervalMs": 10000,
+    "cycleIntervalMs": 3000,
+    "dashboardIntervalMs": 2000,
+    "symbol": "btcusdt",
+    "mergeMode": true,
+    "mergeMaxCombinedCost": 0.97,
+    "mergePositionSizePct": 0.4,
+    "durationMs": 300000
+  },
+  "wallet": {
+    "startingBalance": 15,
+    "finalBalance": 13.336633663366337,
+    "returnPct": -11.089108910891087,
+    "peakBalance": 15,
+    "maxDrawdown": 1.663366336633663
+  },
+  "results": {
+    "totalPnL": -1.6633663366336635,
+    "totalEntries": 1,
+    "wins": 0,
+    "losses": 1,
+    "winRate": 0,
+    "marketsScanned": 6,
+    "sessionHalted": false,
+    "haltReason": "",
+    "durationMs": 300006
+  },
+  "trades": [
+    {
+      "timestamp": 1774645212971,
+      "action": "BUY_DOWN",
+      "conditionId": "0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497",
+      "question": "Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",
+      "side": "down",
+      "entryPrice": 0.505,
+      "exitPrice": 0.505,
+      "shares": 11.881188118811881,
+      "pnl": 0,
+      "btcPrice": 66013.01,
+      "balance": 15,
+      "reason": "trend=-1.24$/s vol=0.005% TTL=287s"
+    },
+    {
+      "timestamp": 1774645315003,
+      "action": "SELL_SL",
+      "conditionId": "0xb5d6a06d12ee7d13fe4a6bf4da283acb1f96760e4b36b16702b31d05e10a3497",
+      "question": "Bitcoin Up or Down - March 27, 5:00PM-5:05PM ET",
+      "side": "down",
+      "entryPrice": 0.505,
+      "exitPrice": 0.365,
+      "shares": 11.881188118811881,
+      "pnl": -1.6633663366336635,
+      "btcPrice": 66041.9,
+      "balance": 13.336633663366337,
+      "reason": "stop loss 27.7% | price $0.5050→$0.3650"
+    }
+  ]
+}

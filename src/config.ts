@@ -50,6 +50,25 @@ export const config = {
     wsUrl: process.env.ALCHEMY_WS_URL || '',
     enabled: process.env.USE_ALCHEMY === 'true',
   },
+
+  volatility: {
+    enabled: process.env.VOL_ENABLED === 'true',
+    maxEntryCost: parseFloat(process.env.VOL_MAX_ENTRY_COST || '0.97'),
+    minVolatility: parseFloat(process.env.VOL_MIN_VOLATILITY || '0.001'),
+    strikeProximityPct: parseFloat(process.env.VOL_STRIKE_PROXIMITY_PCT || '2'),
+    positionSize: parseFloat(process.env.VOL_POSITION_SIZE || '50'),
+    takeProfitPct: parseFloat(process.env.VOL_TAKE_PROFIT_PCT || '15'),
+    stopLossPct: parseFloat(process.env.VOL_STOP_LOSS_PCT || '10'),
+    mergeTimeThresholdMs: parseInt(process.env.VOL_MERGE_TIME_THRESHOLD_MS || '60000'),
+    panicExitSeconds: parseInt(process.env.VOL_PANIC_EXIT_SECONDS || '30'),
+    scanIntervalMs: parseInt(process.env.VOL_SCAN_INTERVAL_MS || '60000'),
+    cycleIntervalMs: parseInt(process.env.VOL_CYCLE_INTERVAL_MS || '5000'),
+    maxOpenPositions: parseInt(process.env.VOL_MAX_OPEN_POSITIONS || '3'),
+    minTtlMs: parseInt(process.env.VOL_MIN_TTL_MS || '120000'),
+    maxTtlMs: parseInt(process.env.VOL_MAX_TTL_MS || '600000'),
+    binanceSymbol: process.env.VOL_BINANCE_SYMBOL || 'btcusdt',
+    binanceApiKey: process.env.BINANCE_API_KEY || '',
+  },
 };
 
 export function validateConfig(): void {

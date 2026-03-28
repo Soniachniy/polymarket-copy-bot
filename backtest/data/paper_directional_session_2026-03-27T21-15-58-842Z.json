@@ -1,0 +1,79 @@
+{
+  "dataSource": "REAL_POLYMARKET_MERGE_HYBRID",
+  "config": {
+    "startingBalance": 15,
+    "positionSizePct": 0.4,
+    "minPositionSize": 0.5,
+    "sessionStopLossPct": 50,
+    "maxOpenPositions": 1,
+    "maxEntryPrice": 0.55,
+    "takeProfitPct": 12,
+    "stopLossPct": 15,
+    "trendWindowMs": 30000,
+    "minTrendStrength": 0.5,
+    "minTtlMs": 150000,
+    "maxTtlMs": 600000,
+    "panicExitSeconds": 45,
+    "minVolatility": 0.00005,
+    "volatilityWarmupMs": 15000,
+    "reversalExitUsd": 30,
+    "cooldownAfterStopLossMs": 30000,
+    "cooldownAfterLossMs": 10000,
+    "scanIntervalMs": 10000,
+    "cycleIntervalMs": 3000,
+    "dashboardIntervalMs": 2000,
+    "symbol": "btcusdt",
+    "mergeMode": true,
+    "mergeMaxCombinedCost": 0.97,
+    "mergePositionSizePct": 0.4,
+    "durationMs": 300000
+  },
+  "wallet": {
+    "startingBalance": 15,
+    "finalBalance": 15.05940594059406,
+    "returnPct": 0.3960396039603964,
+    "peakBalance": 15.05940594059406,
+    "maxDrawdown": 0
+  },
+  "results": {
+    "totalPnL": 0.05940594059405946,
+    "totalEntries": 1,
+    "wins": 1,
+    "losses": 0,
+    "winRate": 1,
+    "marketsScanned": 6,
+    "sessionHalted": false,
+    "haltReason": "",
+    "durationMs": 300011
+  },
+  "trades": [
+    {
+      "timestamp": 1774645972874,
+      "action": "BUY_UP",
+      "conditionId": "0x5cc887edda47160d59afc68a848ef276b1d159c1bb0f6027a8a25a1d49dfdac6",
+      "question": "Bitcoin Up or Down - March 27, 5:15PM-5:20PM ET",
+      "side": "up",
+      "entryPrice": 0.505,
+      "exitPrice": 0.505,
+      "shares": 11.881188118811881,
+      "pnl": 0,
+      "btcPrice": 66139.23,
+      "balance": 15,
+      "reason": "trend=+0.71$/s vol=0.008% TTL=427s"
+    },
+    {
+      "timestamp": 1774646158841,
+      "action": "SESSION_END",
+      "conditionId": "0x5cc887edda47160d59afc68a848ef276b1d159c1bb0f6027a8a25a1d49dfdac6",
+      "question": "Bitcoin Up or Down - March 27, 5:15PM-5:20PM ET",
+      "side": "up",
+      "entryPrice": 0.505,
+      "exitPrice": 0.51,
+      "shares": 11.881188118811881,
+      "pnl": 0.05940594059405946,
+      "btcPrice": 66139.45,
+      "balance": 15.05940594059406,
+      "reason": "session end — force sell at Gamma price $0.5100"
+    }
+  ]
+}

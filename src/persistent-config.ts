@@ -37,6 +37,23 @@ export interface AppConfig {
   pollInterval: number;
   useWebSocket: boolean;
   setupComplete: boolean;
+  // Volatility strategy
+  volEnabled: boolean;
+  volMaxEntryCost: number;
+  volMinVolatility: number;
+  volStrikeProximityPct: number;
+  volPositionSize: number;
+  volTakeProfitPct: number;
+  volStopLossPct: number;
+  volMergeTimeThresholdMs: number;
+  volPanicExitSeconds: number;
+  volScanIntervalMs: number;
+  volCycleIntervalMs: number;
+  volMaxOpenPositions: number;
+  volMinTtlMs: number;
+  volMaxTtlMs: number;
+  volBinanceSymbol: string;
+  volBinanceApiKey: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +79,22 @@ const DEFAULTS: Omit<AppConfig, 'encryptedPrivateKey' | 'walletAddress' | 'creat
   pollInterval: 2000,
   useWebSocket: true,
   setupComplete: false,
+  volEnabled: false,
+  volMaxEntryCost: 0.97,
+  volMinVolatility: 0.001,
+  volStrikeProximityPct: 2,
+  volPositionSize: 50,
+  volTakeProfitPct: 15,
+  volStopLossPct: 10,
+  volMergeTimeThresholdMs: 60000,
+  volPanicExitSeconds: 30,
+  volScanIntervalMs: 60000,
+  volCycleIntervalMs: 5000,
+  volMaxOpenPositions: 3,
+  volMinTtlMs: 120000,
+  volMaxTtlMs: 600000,
+  volBinanceSymbol: 'btcusdt',
+  volBinanceApiKey: '',
 };
 
 function ensureDataDir(): void {
@@ -206,6 +239,24 @@ export function toBotConfig(appConfig: AppConfig, privateKey: string): BotConfig
       wsMarketIds: [],
     },
     contracts,
+    volatility: {
+      enabled: appConfig.volEnabled,
+      maxEntryCost: appConfig.volMaxEntryCost,
+      minVolatility: appConfig.volMinVolatility,
+      strikeProximityPct: appConfig.volStrikeProximityPct,
+      positionSize: appConfig.volPositionSize,
+      takeProfitPct: appConfig.volTakeProfitPct,
+      stopLossPct: appConfig.volStopLossPct,
+      mergeTimeThresholdMs: appConfig.volMergeTimeThresholdMs,
+      panicExitSeconds: appConfig.volPanicExitSeconds,
+      scanIntervalMs: appConfig.volScanIntervalMs,
+      cycleIntervalMs: appConfig.volCycleIntervalMs,
+      maxOpenPositions: appConfig.volMaxOpenPositions,
+      minTtlMs: appConfig.volMinTtlMs,
+      maxTtlMs: appConfig.volMaxTtlMs,
+      binanceSymbol: appConfig.volBinanceSymbol,
+      binanceApiKey: appConfig.volBinanceApiKey,
+    },
   } as unknown as BotConfig;
 }
 

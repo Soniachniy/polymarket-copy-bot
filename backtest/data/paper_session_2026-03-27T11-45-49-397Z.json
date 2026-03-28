@@ -1,0 +1,137 @@
+{
+  "config": {
+    "startingBalance": 5,
+    "positionSizePct": 0.4,
+    "minPositionSize": 0.5,
+    "sessionStopLossPct": 50,
+    "maxOpenPositions": 3,
+    "maxEntryCost": 0.98,
+    "takeProfitPct": 20,
+    "stopLossPct": 20,
+    "minVolatility": 0.00005,
+    "volatilityWarmupMs": 15000,
+    "cooldownAfterStopLossMs": 30000,
+    "cooldownAfterLossMs": 10000,
+    "sensitivity": 0.002,
+    "marketDurationMs": 300000,
+    "marketOverlapMs": 60000,
+    "bidAskSpread": 0.01,
+    "entryOverlap": 0.03,
+    "symbol": "btcusdt",
+    "durationMs": 600000,
+    "cycleIntervalMs": 1000,
+    "dashboardIntervalMs": 2000
+  },
+  "wallet": {
+    "startingBalance": 5,
+    "finalBalance": 5.361083318080181,
+    "returnPct": 7.221666361603614,
+    "peakBalance": 5.449242372239252,
+    "maxDrawdown": 0.4010853684648641,
+    "maxDrawdownPct": 8.021707369297282
+  },
+  "results": {
+    "totalPnL": 0.3610833180801809,
+    "totalEntries": 2,
+    "totalSells": 2,
+    "totalMerges": 0,
+    "totalStopLosses": 1,
+    "wins": 2,
+    "losses": 2,
+    "winRate": 0.5,
+    "tradeCount": 8,
+    "durationMs": 599988,
+    "sessionHalted": false,
+    "haltReason": ""
+  },
+  "trades": [
+    {
+      "timestamp": 1774611350413,
+      "action": "BUY_YES",
+      "marketId": "paper-mkt-1",
+      "price": 0.485,
+      "shares": 4.123711340206186,
+      "pnl": 0,
+      "btcPrice": 66666.01,
+      "balance": 5,
+      "reason": "combined=$0.9700 cost=$4.00 shares=4.12 vol=0.005%"
+    },
+    {
+      "timestamp": 1774611350413,
+      "action": "BUY_NO",
+      "marketId": "paper-mkt-1",
+      "price": 0.485,
+      "shares": 4.123711340206186,
+      "pnl": 0,
+      "btcPrice": 66666.01,
+      "balance": 5,
+      "reason": "strike=$66666.01"
+    },
+    {
+      "timestamp": 1774611589799,
+      "action": "SELL_YES",
+      "marketId": "paper-mkt-1",
+      "price": 0.5922632018527295,
+      "shares": 4.123711340206186,
+      "pnl": 0.44232248186692597,
+      "btcPrice": 66721.33,
+      "balance": 5.442322481866926,
+      "reason": "profit=22.1%"
+    },
+    {
+      "timestamp": 1774611590800,
+      "action": "STOP_LOSS_NO",
+      "marketId": "paper-mkt-1",
+      "price": 0.38773679814727047,
+      "shares": 4.123711340206186,
+      "pnl": -0.40108536846486403,
+      "btcPrice": 66721.33,
+      "balance": 5.041237113402062,
+      "reason": "loss=20.1%"
+    },
+    {
+      "timestamp": 1774611620847,
+      "action": "BUY_YES",
+      "marketId": "paper-mkt-2",
+      "price": 0.48498126536148545,
+      "shares": 4.157560731883321,
+      "pnl": 0,
+      "btcPrice": 66721.32,
+      "balance": 5.041237113402062,
+      "reason": "combined=$0.9700 cost=$4.03 shares=4.16 vol=0.009%"
+    },
+    {
+      "timestamp": 1774611620847,
+      "action": "BUY_NO",
+      "marketId": "paper-mkt-2",
+      "price": 0.4850187346385145,
+      "shares": 4.157560731883321,
+      "pnl": 0,
+      "btcPrice": 66721.32,
+      "balance": 5.041237113402062,
+      "reason": "strike=$66721.33"
+    },
+    {
+      "timestamp": 1774611833191,
+      "action": "SELL_YES",
+      "marketId": "paper-mkt-2",
+      "price": 0.5831169956968951,
+      "shares": 4.157560731883321,
+      "pnl": 0.4080052588371901,
+      "btcPrice": 66771.62,
+      "balance": 5.449242372239252,
+      "reason": "profit=20.2%"
+    },
+    {
+      "timestamp": 1774611949394,
+      "action": "SELL_NO",
+      "marketId": "paper-mkt-2",
+      "price": 0.4638142207794623,
+      "shares": 4.157560731883321,
+      "pnl": -0.08815905415907109,
+      "btcPrice": 66735.32,
+      "balance": 5.361083318080181,
+      "reason": "session end — force sell"
+    }
+  ]
+}

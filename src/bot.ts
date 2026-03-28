@@ -6,6 +6,10 @@ import type { Trade } from './monitor.js';
 import { TradeExecutor } from './trader.js';
 import { PositionTracker } from './positions.js';
 import { RiskManager } from './risk-manager.js';
+import { BinancePriceFeed } from './binance-feed.js';
+import { MarketScanner } from './market-scanner.js';
+import { MergeExecutor } from './merge-executor.js';
+import { VolatilityStrategy, type VolatilityConfig, type VolatilityStats } from './volatility-strategy.js';
 
 export interface BotConfig {
   targetWallet: string;
@@ -32,6 +36,10 @@ export interface BotConfig {
     wsAssetIds: string[];
     wsMarketIds: string[];
   };
+  volatility?: VolatilityConfig & {
+    binanceSymbol?: string;
+    binanceApiKey?: string;
+  };
 }
 
 export interface BotStats {
@@ -53,6 +61,9 @@ export class PolymarketCopyBot extends EventEmitter {
   private botStartTime: number = 0;
   private readonly maxProcessedTrades = 10000;
   private readonly botConfig: BotConfig;
+  // Volatility strategy components
+  private binanceFeed: BinancePriceFeed | undefined;
+  private volatilityStrategy: VolatilityStrategy | undefined;
   private stats: BotStats = {
     tradesDetected: 0,
     tradesCopied: 0,
@@ -129,6 +140,63 @@ export class PolymarketCopyBot extends EventEmitter {
         this.alchemyMonitor = undefined;
       }
     }
+
+    // Initialize volatility strategy (runs in parallel with copy trading)
+    if (this.botConfig.volatility?.enabled) {
+      try {
+        await this.initializeVolatilityStrategy();
+      } catch (error: any) {
+        console.error(`⚠️  Volatility strategy initialization failed: ${error.message}`);
+        this.binanceFeed = undefined;
+        this.volatilityStrategy = undefined;
+      }
+    }
+  }
+
+  private async initializeVolatilityStrategy(): Promise<void> {
+    const volConfig = this.botConfig.volatility!;
+
+    // 1. Binance price feed
+    this.binanceFeed = new BinancePriceFeed({
+      symbol: volConfig.binanceSymbol || 'btcusdt',
+      apiKey: volConfig.binanceApiKey || '',
+    });
+    await this.binanceFeed.initialize();
+    console.log('✅ Binance price feed initialized');
+
+    // 2. Market scanner (uses CLOB client from executor)
+    const clobClient = this.executor.getClobClient();
+    const scanner = new MarketScanner(clobClient);
+
+    // 3. Merge executor
+    const mergeExecutor = new MergeExecutor({
+      privateKey: this.botConfig.privateKey,
+      rpcUrl: this.botConfig.rpcUrl,
+      contracts: {
+        ctf: '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045',
+        usdc: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+        negRiskAdapter: '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296',
+      },
+    });
+
+    // 4. Volatility strategy
+    this.volatilityStrategy = new VolatilityStrategy({
+      binanceFeed: this.binanceFeed,
+      scanner,
+      mergeExecutor,
+      executor: this.executor,
+      positions: this.positions,
+      risk: this.risk,
+      config: volConfig,
+    });
+
+    // Wire volatility events to bot events
+    this.volatilityStrategy.on('vol:entry', (data) => this.emit('vol:entry', data));
+    this.volatilityStrategy.on('vol:entry:failed', (data) => this.emit('vol:entry:failed', data));
+    this.volatilityStrategy.on('vol:exit', (data) => this.emit('vol:exit', data));
+    this.volatilityStrategy.on('vol:merge', (data) => this.emit('vol:merge', data));
+
+    console.log('✅ Volatility strategy initialized\n');
   }
 
   async start(): Promise<void> {
@@ -137,8 +205,16 @@ export class PolymarketCopyBot extends EventEmitter {
     if (this.wsMonitor) methods.push('Polymarket WS');
     if (this.alchemyMonitor) methods.push('Alchemy WS');
     methods.push('REST API');
+    if (this.volatilityStrategy) methods.push('Volatility Strategy');
 
     console.log(`🚀 Bot started! Monitoring via: ${methods.join(' + ')}\n`);
+
+    // Start volatility strategy in parallel (non-blocking)
+    if (this.volatilityStrategy) {
+      this.volatilityStrategy.start().catch((err: any) => {
+        console.error('Volatility strategy error:', err);
+      });
+    }
 
     while (this.isRunning) {
       try {
@@ -228,12 +304,18 @@ export class PolymarketCopyBot extends EventEmitter {
     this.isRunning = false;
     if (this.wsMonitor) this.wsMonitor.close();
     if (this.alchemyMonitor) this.alchemyMonitor.close();
+    if (this.volatilityStrategy) this.volatilityStrategy.stop();
+    if (this.binanceFeed) this.binanceFeed.close();
     console.log('\n🛑 Bot stopped');
     this.printStats();
   }
 
   getStats(): BotStats {
     return { ...this.stats };
+  }
+
+  getVolatilityStats(): VolatilityStats | null {
+    return this.volatilityStrategy?.getStats() ?? null;
   }
 
   printStats(): void {

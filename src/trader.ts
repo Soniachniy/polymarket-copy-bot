@@ -565,6 +565,18 @@ export class TradeExecutor {
     }
   }
   
+  async getOrderBook(tokenId: string): Promise<any> {
+    return this.clobClient.getOrderBook(tokenId);
+  }
+
+  getClobClient(): ClobClient {
+    return this.clobClient;
+  }
+
+  getWalletAddress(): string {
+    return this.wallet.address;
+  }
+
   async cancelAllOrders(): Promise<void> {
     try {
       await this.clobClient.cancelAll();

@@ -101,6 +101,12 @@ export function createHttpServer(controller?: BotController) {
   ctrl.on('trade:failed', (r) => broadcast('trade:failed', r));
   ctrl.on('trade:skipped', (r) => broadcast('trade:skipped', r));
 
+  // Volatility strategy events
+  ctrl.on('vol:entry', (data) => broadcast('vol:entry', data));
+  ctrl.on('vol:entry:failed', (data) => broadcast('vol:entry:failed', data));
+  ctrl.on('vol:exit', (data) => broadcast('vol:exit', data));
+  ctrl.on('vol:merge', (data) => broadcast('vol:merge', data));
+
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url ?? '', 'http://localhost');
     const token = url.searchParams.get('token') ?? req.headers['authorization']?.replace('Bearer ', '');
