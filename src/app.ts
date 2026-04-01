@@ -12,6 +12,7 @@ import { botRouter } from './routes/bot.js';
 import { configRouter } from './routes/config.js';
 import { walletRouter } from './routes/wallet.js';
 import { proxyRouter } from './routes/proxy.js';
+import { mcpRouter } from './routes/mcp.js';
 
 // ── Login rate limiter ──────────────────────────────────────────────────────
 // Keyed by remote IP. Max 10 attempts per 15-minute window.
@@ -59,6 +60,9 @@ export function createApp(controller: BotController = new BotController()) {
       res.status(401).json({ error: 'Invalid or expired token' });
     }
   }
+
+  // MCP endpoint — no JWT (access controlled via Docker network isolation)
+  app.use('/mcp', mcpRouter(controller));
 
   // Public
   app.use('/api/auth', authRouter());
