@@ -586,7 +586,7 @@ export class TradeExecutor {
     }
   }
 
-  private async getOrderOptions(tokenId: string): Promise<{ tickSize: any; negRisk: boolean }> {
+  async getOrderOptions(tokenId: string): Promise<{ tickSize: any; negRisk: boolean }> {
     const metadata = await this.getMarketMetadata(tokenId);
     return {
       tickSize: metadata.tickSizeStr as any,

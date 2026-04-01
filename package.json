@@ -18,7 +18,10 @@
     "backtest:optimize": "tsx src/backtest/optimize-params.ts",
     "paper-trade": "tsx src/backtest/paper-trade.ts",
     "sniper": "tsx src/backtest/sniper-paper.ts",
-    "sniper:live": "tsx src/live-sniper.ts"
+    "sniper:live": "tsx src/live-sniper.ts",
+    "gmm": "tsx src/gmm-strategy.ts",
+    "gmm:paper": "tsx src/backtest/gmm-paper.ts",
+    "discover-wallets": "tsx src/backtest/wallet-discovery.ts"
   },
   "keywords": [],
   "author": "",

@@ -69,6 +69,24 @@ export const config = {
     binanceSymbol: process.env.VOL_BINANCE_SYMBOL || 'btcusdt',
     binanceApiKey: process.env.BINANCE_API_KEY || '',
   },
+  gmm: {
+    enabled: process.env.GMM_ENABLED === 'true',
+    gridLevels: parseInt(process.env.GMM_GRID_LEVELS || '2'),
+    gridSpacingCents: parseInt(process.env.GMM_GRID_SPACING_CENTS || '3'),
+    sharesPerLevel: parseFloat(process.env.GMM_SHARES_PER_LEVEL || '5'),
+    maxBudgetUsdc: parseFloat(process.env.GMM_MAX_BUDGET || '5'),
+    reserveUsdc: parseFloat(process.env.GMM_RESERVE || '1'),
+    requoteIntervalMs: parseInt(process.env.GMM_REQUOTE_MS || '10000'),
+    scanIntervalMs: parseInt(process.env.GMM_SCAN_MS || '15000'),
+    maxInventoryPerSide: parseInt(process.env.GMM_MAX_INVENTORY || '20'),
+    mergeThreshold: parseFloat(process.env.GMM_MERGE_THRESHOLD || '5'),
+    inventorySkewFactor: parseFloat(process.env.GMM_SKEW_FACTOR || '0.5'),
+    unwindBeforeExpirySec: parseInt(process.env.GMM_UNWIND_SEC || '30'),
+    sessionLossLimitUsdc: parseFloat(process.env.GMM_LOSS_LIMIT || '2'),
+    preferUpdown: process.env.GMM_PREFER_UPDOWN !== 'false',
+    minTtlMs: parseInt(process.env.GMM_MIN_TTL_MS || '60000'),
+    symbol: (process.env.GMM_SYMBOL || 'btcusdt').toLowerCase(),
+  },
 };
 
 export function validateConfig(): void {
