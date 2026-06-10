@@ -13,7 +13,9 @@
     "build": "tsc",
     "start:prod": "node dist/api-server.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "predict": "tsx prediction/src/predict.ts",
+    "predict:score": "tsx prediction/src/score.ts"
   },
   "keywords": [],
   "author": "",
