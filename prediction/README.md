@@ -1,7 +1,13 @@
 # NBA prediction service for Polymarket
 
 A selective, calibrated predictor for Polymarket NBA moneyline markets, designed to be driven
-from a Claude Code session via the `/nba-predict` skill.
+from a Claude Code session via the `/nba-predict` skill (defined in
+`.claude/skills/nba-predict/SKILL.md`).
+
+> **Network requirements**: the CLI fetches from `gamma-api.polymarket.com`,
+> `site.api.espn.com` and `cdn.espn.com`. On Claude Code on the web, add these hosts to the
+> environment's network egress allowlist (restrictive policies return 403 for all three);
+> the session layer additionally needs web search for game-day research.
 
 ## How it reaches a ~80% hit rate (read this first)
 
