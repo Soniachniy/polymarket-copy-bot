@@ -60,6 +60,12 @@ npm run predict:score                 # grade pending picks, write data/review.m
 | ESPN `.../injuries` | listed Out/Doubtful players |
 | Web search (session layer) | late-breaking lineups, rest, motivation |
 
+> **Network egress:** the live CLI needs outbound access to
+> `gamma-api.polymarket.com` and `site.api.espn.com`. On Claude Code for the
+> web, allowlist both hosts in your environment's network settings, or run the
+> session under a policy that permits them — otherwise the fetches return 403
+> "Host not in allowlist". The offline `npm test` fixtures don't need network.
+
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
