@@ -60,6 +60,27 @@ npm run predict:score                 # grade pending picks, write data/review.m
 | ESPN `.../injuries` | listed Out/Doubtful players |
 | Web search (session layer) | late-breaking lineups, rest, motivation |
 
+### Network access
+
+The CLI calls `gamma-api.polymarket.com` and `site.api.espn.com` directly. If you run inside a
+sandbox with an egress allowlist (e.g. Claude Code on the web), add **both hosts** to the
+environment's network egress settings or the fetch fails with `403 Host not in allowlist`. The
+web-search research layer (used by the `/nba-predict` skill) goes through Claude and works
+regardless.
+
+## How to run it (the skill)
+
+The whole workflow is packaged as a Claude Code skill at
+`.claude/skills/nba-predict/SKILL.md`. In a session, just type:
+
+```
+/nba-predict          # research the slate, write adjustments, save & report picks
+/nba-predict score    # grade past picks, classify misses, tune
+```
+
+The skill contains all the standing instructions (selectivity rules, adjustment magnitudes,
+the SKIP-on-unresolved-star rule, and the tuning loop), so you don't have to re-explain them.
+
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
