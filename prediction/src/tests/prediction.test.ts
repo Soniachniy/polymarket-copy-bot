@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
+import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf, qualifies } from '../model.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
 import type { GameInfo, TeamRating } from '../types.js';
@@ -128,6 +128,17 @@ describe('model', () => {
 
   it('blend leans toward the market', () => {
     expect(blend(0.9, 0.7)).toBeCloseTo(0.65 * 0.7 + 0.35 * 0.9, 10);
+  });
+
+  it('qualifies requires both confidence threshold and market floor', () => {
+    // clears both gates -> pick
+    expect(qualifies(0.82, 0.75, 0.8, 0.7)).toBe(true);
+    // confident blend but market is a coin flip (model loves an underdog) -> skip
+    expect(qualifies(0.82, 0.55, 0.8, 0.7)).toBe(false);
+    // genuine favorite but blend just under threshold -> skip
+    expect(qualifies(0.79, 0.78, 0.8, 0.7)).toBe(false);
+    // exactly on both bounds -> pick (inclusive)
+    expect(qualifies(0.8, 0.7, 0.8, 0.7)).toBe(true);
   });
 });
 

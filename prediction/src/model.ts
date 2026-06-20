@@ -79,3 +79,18 @@ export function matchMarketsToGames(markets: NbaMarket[], games: GameInfo[]): Ma
 export function blend(pModel: number, pMarket: number, marketWeight = MARKET_WEIGHT): number {
   return marketWeight * pMarket + (1 - marketWeight) * pModel;
 }
+
+/**
+ * The selectivity rule that the ~80% target rests on: a pick qualifies only when the
+ * blended confidence clears the threshold AND the de-vigged market also rates the pick
+ * a genuine favorite (>= floor). The market gate stops the model from chasing a
+ * contrarian edge on an underdog, which is where overconfidence loses games.
+ */
+export function qualifies(
+  probability: number,
+  pMarket: number,
+  threshold: number,
+  marketFloor: number,
+): boolean {
+  return probability >= threshold && pMarket >= marketFloor;
+}

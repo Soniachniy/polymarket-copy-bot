@@ -3,6 +3,8 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+# Keep Claude Code skills/commands (their instructions ARE the deliverable)
+!.claude/**/*.md
 .env
 .polymarket-api-creds
 backtest/data/

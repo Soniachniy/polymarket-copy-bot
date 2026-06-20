@@ -9,8 +9,10 @@ No model predicts every NBA game at 80% — the betting market itself is only ~6
 on all games, and it is the best public forecast that exists. The honest path to 80% is:
 
 1. **Selectivity** — only emit picks whose blended win probability clears a threshold
-   (default 0.78). Coin-flip games are skipped on purpose. Some days produce zero picks;
-   that is correct behavior, not a bug.
+   (default 0.80) **and** whose de-vigged market probability clears a floor (default 0.70,
+   so we only ever back genuine favorites the sharp market also rates highly). Coin-flip
+   and lean games are skipped on purpose. Some days produce zero picks; that is correct
+   behavior, not a bug.
 2. **Calibration** — a 80% confidence pick *should* lose 1 in 5. The score loop checks that
    stated confidence matches realized hit rate per bucket and tunes the threshold.
 3. **Market anchoring** — the final probability is a blend of a ratings model (35%) and the
@@ -44,11 +46,18 @@ Commit `prediction/data/*` after each session — the JSONL log is the system's 
 ```bash
 npm run predict                       # picks above threshold for today's slate
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
+npm run predict -- --json             # machine-readable output (used by the skill)
 npm run predict -- --save             # append picks to data/predictions.jsonl
-npm run predict -- --threshold 0.82   # override confidence threshold
+npm run predict -- --threshold 0.83   # override confidence threshold (default 0.80)
+npm run predict -- --market-floor 0.7 # min de-vigged market prob a pick must have
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
 ```
+
+The `/nba-predict` skill (`.claude/skills/nba-predict/SKILL.md`) is the operator's
+front door: it drives this CLI, layers in web-searched game-day intelligence
+(injuries, rest, motivation), writes `data/adjustments.json`, saves picks, and runs
+the score/learn loop. Just type `/nba-predict` (or `/nba-predict score`) in a session.
 
 ## Data sources (all free, no API keys)
 
@@ -63,8 +72,10 @@ npm run predict:score                 # grade pending picks, write data/review.m
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
-then blended with the de-vigged market price at 65% market weight. Constants live in
-`prediction/src/model.ts`; tune them only through the score-review loop.
+then blended with the de-vigged market price at 65% market weight. A pick is emitted
+only when the blend clears the confidence threshold (0.80) and the market floor (0.70).
+Constants live in `prediction/src/model.ts` and `prediction/src/predict.ts`; tune them
+only through the score-review loop.
 
 ## Files
 
