@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchInjuries, fetchScoreboard, fetchStandings } from './espn.js';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
+import type { ModelOutput } from './model.js';
 import { fetchNbaMarkets, isMoneylineMarket } from './polymarket.js';
 import type { AdjustmentsFile, Prediction } from './types.js';
 
@@ -76,15 +77,25 @@ async function main() {
 
   const rows: Array<Prediction & { pass: boolean; expectedMargin: number; notes: string[] }> = [];
   for (const { market, game, homeIdx } of matched) {
-    const home = ratings.get(game.homeAbbr);
-    const away = ratings.get(game.awayAbbr);
-    if (!home || !away) {
-      console.error(`Skipping ${game.awayAbbr} @ ${game.homeAbbr}: missing standings data.`);
-      continue;
-    }
-    const model = modelHomeWinProb({ home, away, adjustments });
     const fair = deVig(market.prices);
     const pMarketHome = fair[homeIdx] ?? 0.5;
+    const home = ratings.get(game.homeAbbr);
+    const away = ratings.get(game.awayAbbr);
+    let model: ModelOutput;
+    if (home && away) {
+      model = modelHomeWinProb({ home, away, adjustments });
+    } else {
+      // No power ratings (e.g. preseason, all-star break, or a standings-shape gap):
+      // fall back to a market-only forecast instead of dropping the game entirely, so a
+      // clearly-priced favorite still produces a pick. Manual adjustments still apply via margin.
+      const adjMargin =
+        (adjustments[game.homeAbbr]?.points ?? 0) - (adjustments[game.awayAbbr]?.points ?? 0);
+      const notes: string[] = ['no standings data; market-only fallback'];
+      if (adjustments[game.homeAbbr]) notes.push(`${game.homeAbbr}: ${adjustments[game.homeAbbr]!.reason}`);
+      if (adjustments[game.awayAbbr]) notes.push(`${game.awayAbbr}: ${adjustments[game.awayAbbr]!.reason}`);
+      model = { expectedMargin: adjMargin, pHome: pMarketHome, notes };
+      console.error(`${game.awayAbbr} @ ${game.homeAbbr}: missing standings, using market-only forecast.`);
+    }
     const pHome = blend(model.pHome, pMarketHome);
 
     const pickIsHome = pHome >= 0.5;

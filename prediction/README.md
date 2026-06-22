@@ -1,7 +1,9 @@
 # NBA prediction service for Polymarket
 
-A selective, calibrated predictor for Polymarket NBA moneyline markets, designed to be driven
-from a Claude Code session via the `/nba-predict` skill.
+A selective, calibrated predictor for Polymarket NBA moneyline markets, driven from a Claude Code
+session via the **`/nba-predict` skill** (installed at `.claude/skills/nba-predict/SKILL.md`).
+Open a session in this repo and type `/nba-predict` (or ask for NBA picks) to run the full pipeline;
+ask to "score"/"grade" to grade past picks.
 
 ## How it reaches a ~80% hit rate (read this first)
 

@@ -3,6 +3,10 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+!CLAUDE.md
+# Keep Claude Code skills and the prediction service's review/memory markdown tracked.
+!.claude/**/*.md
+!prediction/**/*.md
 .env
 .polymarket-api-creds
 backtest/data/
