@@ -6,6 +6,13 @@ export const HOME_COURT_POINTS = 2.6;
 export const MARGIN_SIGMA = 11.5;
 /** Weight on the market's implied probability in the final blend. Markets are sharp; respect them. */
 export const MARKET_WEIGHT = 0.65;
+/**
+ * The de-vigged market probability of the pick must clear this floor before a pick is emitted.
+ * The blended probability can be dragged over the confidence threshold by an overconfident
+ * ratings model; this guard insists the sharp market *also* sees the pick as a clear favorite.
+ * Empirically the single most reliable lever for a high hit rate.
+ */
+export const MARKET_FLOOR = 0.7;
 
 /** Standard normal CDF via Abramowitz-Stegun erf approximation. */
 export function normCdf(x: number): number {

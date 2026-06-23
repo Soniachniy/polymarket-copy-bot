@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchInjuries, fetchScoreboard, fetchStandings } from './espn.js';
-import { blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
+import { MARKET_FLOOR, blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
 import { fetchNbaMarkets, isMoneylineMarket } from './polymarket.js';
 import type { AdjustmentsFile, Prediction } from './types.js';
 
@@ -14,6 +14,7 @@ const DEFAULT_THRESHOLD = 0.78;
 
 interface CliOptions {
   threshold: number;
+  marketFloor: number;
   save: boolean;
   json: boolean;
   dates: string[]; // YYYY-MM-DD
@@ -23,6 +24,7 @@ interface CliOptions {
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     threshold: DEFAULT_THRESHOLD,
+    marketFloor: MARKET_FLOOR,
     save: false,
     json: false,
     dates: [],
@@ -34,6 +36,7 @@ function parseArgs(argv: string[]): CliOptions {
     else if (arg === '--json') opts.json = true;
     else if (arg === '--all') opts.showAll = true;
     else if (arg === '--threshold') opts.threshold = Number(argv[++i]);
+    else if (arg === '--market-floor') opts.marketFloor = Number(argv[++i]);
     else if (arg === '--date') opts.dates.push(argv[++i]!);
   }
   return opts;
@@ -74,7 +77,9 @@ async function main() {
       `${Object.keys(adjustments).length} manual adjustments loaded.`,
   );
 
-  const rows: Array<Prediction & { pass: boolean; expectedMargin: number; notes: string[] }> = [];
+  const rows: Array<
+    Prediction & { pass: boolean; expectedMargin: number; notes: string[]; guards: string[] }
+  > = [];
   for (const { market, game, homeIdx } of matched) {
     const home = ratings.get(game.homeAbbr);
     const away = ratings.get(game.awayAbbr);
@@ -92,6 +97,19 @@ async function main() {
     const probability = pickIsHome ? pHome : 1 - pHome;
     const pModel = pickIsHome ? model.pHome : 1 - model.pHome;
     const pMarket = pickIsHome ? pMarketHome : 1 - pMarketHome;
+
+    // Discipline guards. A pick must clear the confidence threshold AND survive these:
+    //  - market floor: the sharp, de-vigged market must also rate the pick a clear favorite.
+    //  - agreement: the ratings model and the market must agree on who wins.
+    // A blended probability can be dragged over the threshold by an overconfident model on
+    // stale season ratings; these guards stop that, which is what protects the hit rate.
+    const guards: string[] = [];
+    if (pMarket < opts.marketFloor) {
+      guards.push(`market ${pct(pMarket)} < floor ${pct(opts.marketFloor)}`);
+    }
+    if (pModel < 0.5) {
+      guards.push(`model disagrees on side (model ${pct(pModel)})`);
+    }
 
     const teamInjuries = injuries.filter(
       (r) =>
@@ -122,9 +140,10 @@ async function main() {
         (model.notes.length ? ` | adj: ${model.notes.join('; ')}` : '') +
         injuryNote,
       status: 'pending',
-      pass: probability >= opts.threshold,
+      pass: probability >= opts.threshold && guards.length === 0,
       expectedMargin: model.expectedMargin,
       notes: model.notes,
+      guards,
     });
   }
 
@@ -136,12 +155,14 @@ async function main() {
   } else {
     console.log(`\n=== NBA predictions (threshold ${pct(opts.threshold)}) ===\n`);
     const printRow = (r: (typeof rows)[number]) => {
-      const tag = r.pass ? 'PICK' : 'pass';
+      const tag = r.pass ? 'PICK' : r.guards.length ? 'held' : 'pass';
+      const guardNote = r.guards.length ? `       guard: ${r.guards.join('; ')}\n` : '';
       console.log(
         `[${tag}] ${r.gameDate}  ${r.question}\n` +
           `       -> ${r.pickOutcome} (${r.pickTeam})  conf ${pct(r.probability)}  ` +
           `(model ${pct(r.pModel)} / market ${pct(r.pMarket)}, edge ${(r.edge * 100).toFixed(1)}pp)\n` +
-          `       ${r.rationale}\n`,
+          `       ${r.rationale}\n` +
+          guardNote,
       );
     };
     for (const r of opts.showAll ? rows : picks) printRow(r);
@@ -160,7 +181,7 @@ async function main() {
     let saved = 0;
     for (const r of picks) {
       if (r.conditionId && existing.includes(r.conditionId)) continue; // don't double-log a market
-      const { pass: _pass, expectedMargin: _m, notes: _n, ...record } = r;
+      const { pass: _pass, expectedMargin: _m, notes: _n, guards: _g, ...record } = r;
       appendFileSync(LOG_FILE, JSON.stringify(record) + '\n');
       saved++;
     }

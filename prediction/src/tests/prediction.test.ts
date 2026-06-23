@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
+import {
+  MARKET_FLOOR,
+  blend,
+  deVig,
+  matchMarketsToGames,
+  modelHomeWinProb,
+  normCdf,
+} from '../model.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
 import type { GameInfo, TeamRating } from '../types.js';
@@ -128,6 +135,27 @@ describe('model', () => {
 
   it('blend leans toward the market', () => {
     expect(blend(0.9, 0.7)).toBeCloseTo(0.65 * 0.7 + 0.35 * 0.9, 10);
+  });
+
+  it('market floor is a sane high-confidence gate', () => {
+    // The guard only emits picks the sharp market also rates a clear favorite.
+    expect(MARKET_FLOOR).toBeGreaterThanOrEqual(0.65);
+    expect(MARKET_FLOOR).toBeLessThan(0.8);
+  });
+
+  it('a thin model edge over a coin-flip market is held back by the floor', () => {
+    // Model loves the home team, market sees a near coin flip (0.55). The blend can clear
+    // a 0.70-ish bar, but the de-vigged market (0.55) sits below MARKET_FLOOR, so a
+    // disciplined pipeline must hold the pick rather than emit it.
+    const pModel = modelHomeWinProb({
+      home: rating('HOME', 8),
+      away: rating('AWAY', -2),
+      adjustments: {},
+    }).pHome;
+    const pMarket = 0.55;
+    const blended = blend(pModel, pMarket);
+    expect(blended).toBeGreaterThan(pMarket); // model pulls it up...
+    expect(pMarket).toBeLessThan(MARKET_FLOOR); // ...but the market gate fails -> held.
   });
 });
 
