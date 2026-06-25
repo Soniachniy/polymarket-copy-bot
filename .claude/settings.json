@@ -6,8 +6,10 @@
       "Bash(npm run predict -- *)",
       "Bash(npm run predict:score)",
       "Bash(npm test)",
+      "Bash(npx vitest run *)",
       "WebSearch",
       "WebFetch",
+      "Read",
       "Write(prediction/data/adjustments.json)"
     ]
   }
