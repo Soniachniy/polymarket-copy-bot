@@ -88,6 +88,14 @@ See `.env.example` for the full list.
 - User API credentials are derived/generated from `PRIVATE_KEY` at startup.
 - Frequent WebSocket disconnect/reconnect can happen; REST polling remains active as fallback.
 
+## NBA prediction service
+
+This repo also ships a selective, calibrated NBA win-prediction service for
+Polymarket moneyline markets, driven from a Claude Code session via the
+`/nba-predict` skill. Run `/nba-predict` for today's picks and `/nba-predict score`
+to grade them. It works live against ESPN/Polymarket or fully offline from a manual
+data file when those APIs are blocked. See [`prediction/README.md`](prediction/README.md).
+
 ## Security
 
 - Never commit `.env`.

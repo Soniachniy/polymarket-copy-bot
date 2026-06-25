@@ -24,30 +24,62 @@ This service answers "who will win", not "is this price +EV".
 
 ## Daily workflow
 
+The whole thing is driven from one Claude Code skill — you run a session, it does
+the rest. The predefined instructions live in `.claude/skills/nba-predict/SKILL.md`.
+
 ```
 You:    /nba-predict
-Claude: runs the pipeline, researches the slate, writes adjustments, saves picks,
-        reports PICKS + skipped games
+Claude: gets the slate + prices + ratings (live APIs, or web research if blocked),
+        researches tonight's injuries/rest/motivation, encodes them as point
+        adjustments, runs the engine, saves picks, reports PICKS + skipped games
 
 (next day / after games finish)
 
 You:    /nba-predict score
-Claude: grades the log vs ESPN finals, writes prediction/data/review.md,
+Claude: grades the log vs final scores, writes prediction/data/review.md,
         classifies each miss (variance / information miss / model error),
         proposes and applies tuning
 ```
 
 Commit `prediction/data/*` after each session — the JSONL log is the system's memory.
 
+### Why a skill, not just a script
+
+The CLI does the math; it can't see tonight's lineup. The skill is the session
+layer that researches game-day information (injuries, rest, load management) with
+web search and turns it into the point adjustments the model needs. That research
+step is where most of the edge — and most of the misses to learn from — lives.
+
+## Offline / API-blocked mode (network-independent)
+
+Some environments block `site.api.espn.com` / `gamma-api.polymarket.com` (egress
+allowlists, rate limits). The engine then runs identically from a hand-built data
+file the session layer fills via web research:
+
+```bash
+# 1. copy the template and fill it from web research (see input.example.json)
+cp prediction/data/input.example.json prediction/data/input.today.json
+# 2. generate + save picks with no API calls
+npm run predict -- --input prediction/data/input.today.json --save
+# 3. later, grade offline from a results file
+npm run predict:score -- --results prediction/data/results.json
+```
+
+The model, blending, threshold, calibration, and logging are byte-for-byte the same
+as live mode — only the data source changes. `prediction/data/input.example.json`
+documents every field.
+
 ## CLI (what the skill runs under the hood)
 
 ```bash
-npm run predict                       # picks above threshold for today's slate
+npm run predict                       # picks above threshold for today's slate (live APIs)
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
-npm run predict:score                 # grade pending picks, write data/review.md
+npm run predict -- --input FILE       # offline: read the slate from a manual data file
+npm run predict:score                 # grade pending picks vs live finals, write data/review.md
+npm run predict:score -- --results F  # offline: grade against a manual final-scores file
 ```
 
 ## Data sources (all free, no API keys)
@@ -68,11 +100,14 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
-- `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
-- `src/score.ts` — grading + calibration + mistakes report
+- `../.claude/skills/nba-predict/SKILL.md` — the session playbook (`/nba-predict`)
+- `src/predict.ts` — main CLI (fetch/manual → match → model → blend → picks)
+- `src/score.ts` — grading + calibration + mistakes report (live or `--results`)
 - `src/model.ts` — probabilities, blending, market/game matching
-- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
-- `data/adjustments.json` — per-team point adjustments for today (written each session)
+- `src/manual.ts` — offline data loader (manual slate → pipeline shapes)
+- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — live data layer
+- `data/adjustments.json` — per-team point adjustments for today (LIVE mode)
+- `data/input.example.json` — template for offline/manual slates
 - `data/predictions.jsonl` — append-only prediction log (the system's memory)
 - `data/review.md` — latest grading report
 

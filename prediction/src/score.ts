@@ -2,11 +2,48 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchScoreboard } from './espn.js';
+import { resolveTeam } from './teams.js';
 import type { GameInfo, Prediction } from './types.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
 const REVIEW_FILE = join(DATA_DIR, 'review.md');
+
+interface ManualResult {
+  home: string;
+  away: string;
+  homeScore: number;
+  awayScore: number;
+  date?: string;
+}
+
+/** Offline grading: read final scores from a JSON file instead of ESPN. */
+function loadManualResults(file: string): Map<string, GameInfo[]> {
+  const parsed = JSON.parse(readFileSync(file, 'utf8')) as { results: ManualResult[] };
+  const byDate = new Map<string, GameInfo[]>();
+  for (const r of parsed.results ?? []) {
+    const homeAbbr = resolveTeam(r.home);
+    const awayAbbr = resolveTeam(r.away);
+    if (!homeAbbr || !awayAbbr) {
+      console.error(`Manual results: skipping unresolved matchup "${r.away} @ ${r.home}".`);
+      continue;
+    }
+    const game: GameInfo = {
+      espnId: '',
+      date: r.date ?? '',
+      homeAbbr,
+      awayAbbr,
+      startTimeUtc: '',
+      completed: true,
+      homeScore: Number(r.homeScore),
+      awayScore: Number(r.awayScore),
+    };
+    const key = game.date;
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push(game);
+  }
+  return byDate;
+}
 
 function loadLog(): Prediction[] {
   if (!existsSync(LOG_FILE)) {
@@ -26,21 +63,34 @@ function winnerOf(g: GameInfo): string | null {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  const resultsIdx = argv.indexOf('--results');
+  const resultsFile = resultsIdx >= 0 ? argv[resultsIdx + 1] : undefined;
+
   const log = loadLog();
   const pending = log.filter((p) => p.status === 'pending');
   const pendingDates = [...new Set(pending.map((p) => p.gameDate))];
 
   console.error(`${log.length} logged prediction(s), ${pending.length} pending across ${pendingDates.length} date(s).`);
 
-  const resultsByDate = new Map<string, GameInfo[]>();
-  for (const date of pendingDates) {
-    resultsByDate.set(date, await fetchScoreboard(date));
+  let resultsByDate = new Map<string, GameInfo[]>();
+  if (resultsFile) {
+    console.error(`Grading from manual results file ${resultsFile} (offline mode, no API calls)...`);
+    resultsByDate = loadManualResults(resultsFile);
+  } else {
+    for (const date of pendingDates) {
+      resultsByDate.set(date, await fetchScoreboard(date));
+    }
   }
+  // Flat list lets us match a pick even if its logged gameDate differs from the result's date.
+  const allResults = [...resultsByDate.values()].flat();
 
   for (const p of pending) {
     const games = resultsByDate.get(p.gameDate) ?? [];
     // The pick references one team; find the completed game involving it.
-    const game = games.find((g) => g.homeAbbr === p.pickTeam || g.awayAbbr === p.pickTeam);
+    const game =
+      games.find((g) => g.homeAbbr === p.pickTeam || g.awayAbbr === p.pickTeam) ??
+      allResults.find((g) => g.homeAbbr === p.pickTeam || g.awayAbbr === p.pickTeam);
     if (!game) continue;
     const winner = winnerOf(game);
     if (!winner) continue; // not finished yet

@@ -1,0 +1,31 @@
+{
+  "date": "2026-06-25",
+  "games": [
+    {
+      "home": "Lakers",
+      "away": "Celtics",
+      "marketPrices": { "Lakers": 0.46, "Celtics": 0.54 },
+      "homeNetRating": 2.1,
+      "awayNetRating": 5.8,
+      "homeRecord": [48, 34],
+      "awayRecord": [55, 27],
+      "adjustments": { "Lakers": { "points": -3.5, "reason": "AD listed doubtful (knee)" } },
+      "injuries": [{ "team": "Lakers", "player": "Anthony Davis", "status": "Doubtful" }],
+      "slug": "nba-lal-bos-2026-06-25",
+      "conditionId": "0xEXAMPLE_LAL_BOS",
+      "question": "Lakers vs. Celtics"
+    },
+    {
+      "home": "Thunder",
+      "away": "Wizards",
+      "marketPrices": [0.9, 0.1],
+      "homeNetRating": 8.4,
+      "awayNetRating": -7.9,
+      "homeRecord": [60, 22],
+      "awayRecord": [20, 62],
+      "slug": "nba-okc-was-2026-06-25",
+      "conditionId": "0xEXAMPLE_OKC_WAS",
+      "question": "Thunder vs. Wizards"
+    }
+  ]
+}

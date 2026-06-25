@@ -3,6 +3,9 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+# Claude Code skills are markdown but must be version-controlled.
+!.claude/
+!.claude/skills/**/*.md
 .env
 .polymarket-api-creds
 backtest/data/
