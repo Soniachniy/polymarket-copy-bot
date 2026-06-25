@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm run predict)",
+      "Bash(npm run predict -- *)",
+      "Bash(npm run predict:score)",
+      "Bash(npm test)",
+      "WebSearch",
+      "WebFetch",
+      "Write(prediction/data/adjustments.json)"
+    ]
+  }
+}
