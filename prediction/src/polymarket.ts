@@ -1,3 +1,4 @@
+import { cachedFetch } from './cache.js';
 import { getJson } from './http.js';
 import { resolveTeam } from './teams.js';
 import type { NbaMarket } from './types.js';
@@ -78,6 +79,11 @@ export function isMoneylineMarket(m: NbaMarket): boolean {
 }
 
 export async function fetchNbaMarkets(): Promise<NbaMarket[]> {
+  // Cache key holds normalized markets so a manual snapshot can be hand-written too.
+  return cachedFetch('markets', fetchNbaMarketsLive, { staleAfterHours: 12 });
+}
+
+async function fetchNbaMarketsLive(): Promise<NbaMarket[]> {
   const all: GammaEvent[] = [];
   const limit = 100;
   for (let offset = 0; offset < 500; offset += limit) {

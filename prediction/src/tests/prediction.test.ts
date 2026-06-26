@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { existsSync, rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { cachedFetch, readCache, writeCache } from '../cache.js';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
@@ -128,6 +132,38 @@ describe('model', () => {
 
   it('blend leans toward the market', () => {
     expect(blend(0.9, 0.7)).toBeCloseTo(0.65 * 0.7 + 0.35 * 0.9, 10);
+  });
+});
+
+describe('cache fallback (offline / snapshot mode)', () => {
+  const CACHE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'data', 'cache');
+  const KEY = '__test_cache_key__';
+
+  afterEach(() => {
+    const path = join(CACHE_DIR, `${KEY}.json`);
+    if (existsSync(path)) rmSync(path);
+  });
+
+  it('returns live data and writes a snapshot on success', async () => {
+    const out = await cachedFetch(KEY, async () => [{ x: 1 }]);
+    expect(out).toEqual([{ x: 1 }]);
+    expect(readCache<unknown>(KEY)?.data).toEqual([{ x: 1 }]);
+  });
+
+  it('falls back to the cached snapshot when the live fetch throws', async () => {
+    writeCache(KEY, { from: 'snapshot' });
+    const out = await cachedFetch(KEY, async () => {
+      throw new Error('host not in allowlist');
+    });
+    expect(out).toEqual({ from: 'snapshot' });
+  });
+
+  it('throws a helpful error when the fetch fails and no snapshot exists', async () => {
+    await expect(
+      cachedFetch('__definitely_missing_key__', async () => {
+        throw new Error('blocked');
+      }),
+    ).rejects.toThrow(/no cached snapshot/);
   });
 });
 

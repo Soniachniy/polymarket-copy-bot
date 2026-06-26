@@ -60,6 +60,48 @@ npm run predict:score                 # grade pending picks, write data/review.m
 | ESPN `.../injuries` | listed Out/Doubtful players |
 | Web search (session layer) | late-breaking lineups, rest, motivation |
 
+## Network requirements
+
+The CLI fetches directly from two hosts. The environment running it must allow outbound
+HTTPS to:
+
+- `gamma-api.polymarket.com`
+- `site.api.espn.com`
+
+In a restricted/sandboxed session these may be blocked (`403 Host not in allowlist`). Add
+them to the network egress allowlist, or use snapshot mode below. Web search (used by the
+`/nba-predict` skill for injuries/rest) keeps working regardless.
+
+## Offline / snapshot mode
+
+Every successful live fetch is cached to `prediction/data/cache/<key>.json` as
+`{ "savedAt": ISO, "data": ... }`. If a later live fetch fails, the engine transparently
+falls back to that cached snapshot (warning if it's stale). This means:
+
+- Re-running after a transient network blip just works.
+- You can run fully offline / from manual input by **hand-writing** the cache files. Drop in
+  the keys you need; any missing-and-unfetchable key raises a clear error.
+
+The cache directory is git-ignored (transient). Keys and `data` shapes:
+
+| Key | `data` shape |
+|---|---|
+| `markets` | `NbaMarket[]` — `{ eventTitle, question, slug, conditionId, outcomes[2], prices[2], teamAbbrs[2] }` |
+| `scoreboard-today` / `scoreboard-YYYYMMDD` | `GameInfo[]` — `{ espnId, date, homeAbbr, awayAbbr, startTimeUtc, completed, homeScore?, awayScore? }` |
+| `standings` | `TeamRating[]` — `{ abbr, wins, losses, pointDiff, winPct }` |
+| `injuries` | `InjuryReport[]` — `{ teamAbbr, player, status, detail? }` (may be `[]`) |
+
+`teamAbbrs` / `*Abbr` use the abbreviations in `prediction/src/teams.ts`. `prices` are 0–1 and
+need not sum to 1 (the engine de-vigs them). Example minimal `cache/markets.json`:
+
+```json
+{ "savedAt": "2026-06-26T12:00:00.000Z", "data": [
+  { "eventTitle": "Thunder vs. Pacers", "question": "Thunder vs. Pacers",
+    "slug": "nba-okc-ind", "conditionId": "0x1",
+    "outcomes": ["Thunder","Pacers"], "prices": [0.80,0.20], "teamAbbrs": ["OKC","IND"] }
+] }
+```
+
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
@@ -68,13 +110,16 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
+- `.claude/skills/nba-predict/SKILL.md` — the session playbook the user invokes via `/nba-predict`
 - `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
 - `src/score.ts` — grading + calibration + mistakes report
 - `src/model.ts` — probabilities, blending, market/game matching
 - `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
+- `src/cache.ts` — on-disk snapshot fallback for blocked/offline fetches
 - `data/adjustments.json` — per-team point adjustments for today (written each session)
 - `data/predictions.jsonl` — append-only prediction log (the system's memory)
 - `data/review.md` — latest grading report
+- `data/cache/` — transient live-fetch snapshots (git-ignored; see Offline mode)
 
 ## Tests
 

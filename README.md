@@ -2,6 +2,12 @@
 
 TypeScript bot that watches a target Polymarket wallet and copies new `BUY` trades with configurable sizing and risk caps.
 
+> **NBA prediction service:** this repo also ships a selective, calibrated predictor for
+> Polymarket NBA moneyline markets, driven from a Claude Code session via the `/nba-predict`
+> skill. Run `/nba-predict` for today's picks and `/nba-predict score` to grade and tune.
+> See [`prediction/README.md`](prediction/README.md) for the model, data sources, network
+> requirements, and offline/snapshot mode.
+
 ## What It Does
 
 - Watches a target wallet via REST polling.

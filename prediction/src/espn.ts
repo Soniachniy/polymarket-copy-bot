@@ -1,3 +1,4 @@
+import { cachedFetch } from './cache.js';
 import { getJson } from './http.js';
 import { normalizeEspnAbbr } from './teams.js';
 import type { GameInfo, InjuryReport, TeamRating } from './types.js';
@@ -8,6 +9,11 @@ const SITE_V2 = 'https://site.api.espn.com/apis/v2/sports/basketball/nba';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export async function fetchScoreboard(dateYmd?: string): Promise<GameInfo[]> {
+  const key = `scoreboard-${dateYmd ? dateYmd.replaceAll('-', '') : 'today'}`;
+  return cachedFetch(key, () => fetchScoreboardLive(dateYmd), { staleAfterHours: 24 });
+}
+
+async function fetchScoreboardLive(dateYmd?: string): Promise<GameInfo[]> {
   const datesParam = dateYmd ? `?dates=${dateYmd.replaceAll('-', '')}` : '';
   const data = await getJson<any>(`${SITE}/scoreboard${datesParam}`);
   const games: GameInfo[] = [];
@@ -36,6 +42,11 @@ export async function fetchScoreboard(dateYmd?: string): Promise<GameInfo[]> {
 }
 
 export async function fetchStandings(): Promise<Map<string, TeamRating>> {
+  const entries = await cachedFetch('standings', fetchStandingsLive, { staleAfterHours: 48 });
+  return new Map(entries.map((r) => [r.abbr, r]));
+}
+
+async function fetchStandingsLive(): Promise<TeamRating[]> {
   const data = await getJson<any>(`${SITE_V2}/standings`);
   const ratings = new Map<string, TeamRating>();
   const groups: any[] = data?.children ?? (data?.standings ? [data] : []);
@@ -76,10 +87,14 @@ export async function fetchStandings(): Promise<Map<string, TeamRating>> {
         `Inspect ${SITE_V2}/standings and update prediction/src/espn.ts.`,
     );
   }
-  return ratings;
+  return [...ratings.values()];
 }
 
 export async function fetchInjuries(): Promise<InjuryReport[]> {
+  return cachedFetch('injuries', fetchInjuriesLive, { staleAfterHours: 24 });
+}
+
+async function fetchInjuriesLive(): Promise<InjuryReport[]> {
   const data = await getJson<any>(`${SITE}/injuries`);
   const reports: InjuryReport[] = [];
   for (const teamBlock of data?.injuries ?? []) {

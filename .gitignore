@@ -3,6 +3,11 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+# Track skill instructions and the prediction memory/report files even though *.md is ignored.
+!.claude/**/*.md
+!prediction/data/*.md
 .env
 .polymarket-api-creds
 backtest/data/
+# Transient live-fetch snapshots (auto-written); not part of repo history.
+prediction/data/cache/
