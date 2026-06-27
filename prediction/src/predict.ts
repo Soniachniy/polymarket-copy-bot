@@ -74,7 +74,15 @@ async function main() {
       `${Object.keys(adjustments).length} manual adjustments loaded.`,
   );
 
-  const rows: Array<Prediction & { pass: boolean; expectedMargin: number; notes: string[] }> = [];
+  const rows: Array<
+    Prediction & {
+      pass: boolean;
+      expectedMargin: number;
+      notes: string[];
+      homeAbbr: string;
+      awayAbbr: string;
+    }
+  > = [];
   for (const { market, game, homeIdx } of matched) {
     const home = ratings.get(game.homeAbbr);
     const away = ratings.get(game.awayAbbr);
@@ -125,6 +133,8 @@ async function main() {
       pass: probability >= opts.threshold,
       expectedMargin: model.expectedMargin,
       notes: model.notes,
+      homeAbbr: game.homeAbbr,
+      awayAbbr: game.awayAbbr,
     });
   }
 
@@ -160,7 +170,14 @@ async function main() {
     let saved = 0;
     for (const r of picks) {
       if (r.conditionId && existing.includes(r.conditionId)) continue; // don't double-log a market
-      const { pass: _pass, expectedMargin: _m, notes: _n, ...record } = r;
+      const {
+        pass: _pass,
+        expectedMargin: _m,
+        notes: _n,
+        homeAbbr: _h,
+        awayAbbr: _a,
+        ...record
+      } = r;
       appendFileSync(LOG_FILE, JSON.stringify(record) + '\n');
       saved++;
     }

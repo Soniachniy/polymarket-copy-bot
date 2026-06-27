@@ -24,6 +24,10 @@ This service answers "who will win", not "is this price +EV".
 
 ## Daily workflow
 
+The whole system is driven by the **`/nba-predict` skill** (`.claude/skills/nba-predict/`).
+You don't run the CLI by hand — you start a Claude Code session and type the command;
+the skill runs the pipeline, does the game-day research, and reports picks.
+
 ```
 You:    /nba-predict
 Claude: runs the pipeline, researches the slate, writes adjustments, saves picks,
@@ -59,6 +63,15 @@ npm run predict:score                 # grade pending picks, write data/review.m
 | ESPN `.../standings` | W-L, point differential (power ratings) |
 | ESPN `.../injuries` | listed Out/Doubtful players |
 | Web search (session layer) | late-breaking lineups, rest, motivation |
+
+## Network access
+
+The pipeline calls two hosts directly (no API keys): `gamma-api.polymarket.com`
+and `site.api.espn.com`. In a sandboxed/remote environment with an egress
+allowlist, add **both** hosts or the run fails with
+`FatalHttpError ... 403 ... Host not in allowlist`. That is an environment policy,
+not a code bug — running locally (open egress) needs no configuration. Web search
+in the session layer goes through Claude's own tools and needs no allowlisting.
 
 ## Model
 

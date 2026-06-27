@@ -3,6 +3,7 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+!.claude/skills/**/*.md
 .env
 .polymarket-api-creds
 backtest/data/

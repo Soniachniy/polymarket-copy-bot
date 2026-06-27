@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy the shape below into adjustments.json each session. Keys are team abbreviations (see src/teams.ts). points is added to that team's expected margin in points; negative = weaker. Delete this _comment key in the real file. Use {} when nothing material changes a game.",
+  "LAL": { "points": -5, "reason": "Doncic OUT (knee) — confirmed by beat writer" },
+  "BOS": { "points": -1.5, "reason": "2nd night of a back-to-back, no rest" },
+  "OKC": { "points": 3, "reason": "Holmgren upgraded to available after being listed Out" }
+}
