@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchInjuries, fetchScoreboard, fetchStandings } from './espn.js';
-import { blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
+import { blend, deVig, matchMarketsToGames, modelHomeWinProb, passesPick } from './model.js';
 import { fetchNbaMarkets, isMoneylineMarket } from './polymarket.js';
 import type { AdjustmentsFile, Prediction } from './types.js';
 
@@ -11,9 +11,17 @@ export const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
 const ADJUSTMENTS_FILE = join(DATA_DIR, 'adjustments.json');
 
 const DEFAULT_THRESHOLD = 0.78;
+/**
+ * A pick must clear the blended threshold AND have a de-vigged market probability of at least
+ * this floor. The market is the sharpest public forecast; this stops the ratings model from
+ * manufacturing high confidence on games the market itself sees as close (the riskiest picks,
+ * and the ones most likely to break an 80% target).
+ */
+const DEFAULT_MARKET_FLOOR = 0.6;
 
 interface CliOptions {
   threshold: number;
+  marketFloor: number;
   save: boolean;
   json: boolean;
   dates: string[]; // YYYY-MM-DD
@@ -23,6 +31,7 @@ interface CliOptions {
 function parseArgs(argv: string[]): CliOptions {
   const opts: CliOptions = {
     threshold: DEFAULT_THRESHOLD,
+    marketFloor: DEFAULT_MARKET_FLOOR,
     save: false,
     json: false,
     dates: [],
@@ -34,6 +43,7 @@ function parseArgs(argv: string[]): CliOptions {
     else if (arg === '--json') opts.json = true;
     else if (arg === '--all') opts.showAll = true;
     else if (arg === '--threshold') opts.threshold = Number(argv[++i]);
+    else if (arg === '--market-floor') opts.marketFloor = Number(argv[++i]);
     else if (arg === '--date') opts.dates.push(argv[++i]!);
   }
   return opts;
@@ -122,7 +132,7 @@ async function main() {
         (model.notes.length ? ` | adj: ${model.notes.join('; ')}` : '') +
         injuryNote,
       status: 'pending',
-      pass: probability >= opts.threshold,
+      pass: passesPick(probability, pMarket, opts.threshold, opts.marketFloor),
       expectedMargin: model.expectedMargin,
       notes: model.notes,
     });
@@ -134,7 +144,17 @@ async function main() {
   if (opts.json) {
     console.log(JSON.stringify(opts.showAll ? rows : picks, null, 2));
   } else {
-    console.log(`\n=== NBA predictions (threshold ${pct(opts.threshold)}) ===\n`);
+    console.log(
+      `\n=== NBA predictions (threshold ${pct(opts.threshold)}, market floor ${pct(opts.marketFloor)}) ===\n`,
+    );
+    const heldByFloor = rows.filter((r) => r.probability >= opts.threshold && !r.pass);
+    if (heldByFloor.length > 0 && !opts.showAll) {
+      console.log(
+        `${heldByFloor.length} game(s) cleared confidence but the market sees them as too close ` +
+          `(market < ${pct(opts.marketFloor)}) — held back to protect accuracy. ` +
+          `Use --all to inspect or --market-floor to override.\n`,
+      );
+    }
     const printRow = (r: (typeof rows)[number]) => {
       const tag = r.pass ? 'PICK' : 'pass';
       console.log(

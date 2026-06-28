@@ -79,3 +79,18 @@ export function matchMarketsToGames(markets: NbaMarket[], games: GameInfo[]): Ma
 export function blend(pModel: number, pMarket: number, marketWeight = MARKET_WEIGHT): number {
   return marketWeight * pMarket + (1 - marketWeight) * pModel;
 }
+
+/**
+ * A pick is emitted only when the blended confidence clears the threshold AND the market's own
+ * de-vigged probability for the same side clears the floor. The second condition stops the
+ * ratings model from manufacturing high confidence on games the sharp market sees as close —
+ * the picks most likely to break an 80% hit-rate target.
+ */
+export function passesPick(
+  probability: number,
+  pMarket: number,
+  threshold: number,
+  marketFloor: number,
+): boolean {
+  return probability >= threshold && pMarket >= marketFloor;
+}

@@ -9,8 +9,10 @@ No model predicts every NBA game at 80% — the betting market itself is only ~6
 on all games, and it is the best public forecast that exists. The honest path to 80% is:
 
 1. **Selectivity** — only emit picks whose blended win probability clears a threshold
-   (default 0.78). Coin-flip games are skipped on purpose. Some days produce zero picks;
-   that is correct behavior, not a bug.
+   (default 0.78) **and** whose de-vigged market probability clears a floor (default 0.60).
+   The floor stops the ratings model from manufacturing confidence on games the sharp market
+   sees as close — the picks most likely to break an 80% target. Coin-flip games are skipped on
+   purpose. Some days produce zero picks; that is correct behavior, not a bug.
 2. **Calibration** — a 80% confidence pick *should* lose 1 in 5. The score loop checks that
    stated confidence matches realized hit rate per bucket and tunes the threshold.
 3. **Market anchoring** — the final probability is a blend of a ratings model (35%) and the
@@ -46,6 +48,7 @@ npm run predict                       # picks above threshold for today's slate
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
+npm run predict -- --market-floor 0.65 # override de-vigged market probability floor
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
 ```
@@ -63,8 +66,10 @@ npm run predict:score                 # grade pending picks, write data/review.m
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
-then blended with the de-vigged market price at 65% market weight. Constants live in
-`prediction/src/model.ts`; tune them only through the score-review loop.
+then blended with the de-vigged market price at 65% market weight. A pick is emitted only when
+the blend clears `--threshold` **and** the de-vigged market clears `--market-floor` (see
+`passesPick` in `prediction/src/model.ts`). Constants live in `prediction/src/model.ts`; tune
+them only through the score-review loop.
 
 ## Files
 
