@@ -1,10 +1,16 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  bundleToInputs,
+  computeRows,
+  type InputBundle,
+  type PredictionRow,
+} from './engine.js';
 import { fetchInjuries, fetchScoreboard, fetchStandings } from './espn.js';
-import { blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
+import { matchMarketsToGames } from './model.js';
 import { fetchNbaMarkets, isMoneylineMarket } from './polymarket.js';
-import type { AdjustmentsFile, Prediction } from './types.js';
+import type { AdjustmentsFile } from './types.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 export const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
@@ -18,6 +24,7 @@ interface CliOptions {
   json: boolean;
   dates: string[]; // YYYY-MM-DD
   showAll: boolean;
+  input?: string; // path to a research/offline InputBundle JSON
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -35,6 +42,7 @@ function parseArgs(argv: string[]): CliOptions {
     else if (arg === '--all') opts.showAll = true;
     else if (arg === '--threshold') opts.threshold = Number(argv[++i]);
     else if (arg === '--date') opts.dates.push(argv[++i]!);
+    else if (arg === '--input') opts.input = argv[++i] ?? '';
   }
   return opts;
 }
@@ -48,9 +56,8 @@ function pct(p: number): string {
   return `${(p * 100).toFixed(1)}%`;
 }
 
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-
+/** Live mode: fetch markets, schedule, standings and injuries from the public APIs. */
+async function liveRows(opts: CliOptions): Promise<PredictionRow[]> {
   console.error('Fetching Polymarket NBA markets, ESPN scoreboard, standings, injuries...');
   const dates = opts.dates.length > 0 ? opts.dates : [undefined];
   const [markets, ratings, injuries, ...scoreboards] = await Promise.all([
@@ -74,68 +81,48 @@ async function main() {
       `${Object.keys(adjustments).length} manual adjustments loaded.`,
   );
 
-  const rows: Array<Prediction & { pass: boolean; expectedMargin: number; notes: string[] }> = [];
-  for (const { market, game, homeIdx } of matched) {
-    const home = ratings.get(game.homeAbbr);
-    const away = ratings.get(game.awayAbbr);
-    if (!home || !away) {
-      console.error(`Skipping ${game.awayAbbr} @ ${game.homeAbbr}: missing standings data.`);
-      continue;
-    }
-    const model = modelHomeWinProb({ home, away, adjustments });
-    const fair = deVig(market.prices);
-    const pMarketHome = fair[homeIdx] ?? 0.5;
-    const pHome = blend(model.pHome, pMarketHome);
+  return computeRows(matched, {
+    ratings,
+    injuries,
+    adjustments,
+    threshold: opts.threshold,
+    warn: (m) => console.error(m),
+  });
+}
 
-    const pickIsHome = pHome >= 0.5;
-    const pickIdx = pickIsHome ? homeIdx : 1 - homeIdx;
-    const probability = pickIsHome ? pHome : 1 - pHome;
-    const pModel = pickIsHome ? model.pHome : 1 - model.pHome;
-    const pMarket = pickIsHome ? pMarketHome : 1 - pMarketHome;
-
-    const teamInjuries = injuries.filter(
-      (r) =>
-        (r.teamAbbr === game.homeAbbr || r.teamAbbr === game.awayAbbr) &&
-        /out|doubtful/i.test(r.status),
-    );
-    const injuryNote =
-      teamInjuries.length > 0
-        ? ` | listed Out/Doubtful: ${teamInjuries.map((r) => `${r.player} (${r.teamAbbr}, ${r.status})`).join(', ')}`
-        : '';
-
-    rows.push({
-      ts: new Date().toISOString(),
-      gameDate: game.date,
-      slug: market.slug,
-      conditionId: market.conditionId,
-      question: market.question || market.eventTitle,
-      pickTeam: market.teamAbbrs[pickIdx]!,
-      pickOutcome: market.outcomes[pickIdx]!,
-      probability,
-      pModel,
-      pMarket,
-      edge: probability - pMarket,
-      threshold: opts.threshold,
-      rationale:
-        `margin ${model.expectedMargin >= 0 ? '+' : ''}${model.expectedMargin.toFixed(1)} home; ` +
-        `model ${pct(pModel)}, market ${pct(pMarket)}` +
-        (model.notes.length ? ` | adj: ${model.notes.join('; ')}` : '') +
-        injuryNote,
-      status: 'pending',
-      pass: probability >= opts.threshold,
-      expectedMargin: model.expectedMargin,
-      notes: model.notes,
-    });
+/** Research/offline mode: score a session-written InputBundle with no live fetches. */
+function inputRows(opts: CliOptions): PredictionRow[] {
+  const path = opts.input!;
+  const bundle = JSON.parse(readFileSync(path, 'utf8')) as InputBundle;
+  if (!bundle.date || !Array.isArray(bundle.games)) {
+    throw new Error(`Input bundle ${path} must have { "date": "YYYY-MM-DD", "games": [...] }.`);
   }
+  const { matched, ratings, injuries, adjustments, warnings } = bundleToInputs(bundle);
+  for (const w of warnings) console.error(`(input) ${w}`);
+  console.error(
+    `Research mode: ${bundle.games.length} game(s) in bundle, ${matched.length} scored, ` +
+      `${Object.keys(adjustments).length} adjustment(s).`,
+  );
+  return computeRows(matched, {
+    ratings,
+    injuries,
+    adjustments,
+    threshold: opts.threshold,
+    warn: (m) => console.error(m),
+  });
+}
 
-  rows.sort((a, b) => b.probability - a.probability);
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+
+  const rows = opts.input ? inputRows(opts) : await liveRows(opts);
   const picks = rows.filter((r) => r.pass);
 
   if (opts.json) {
     console.log(JSON.stringify(opts.showAll ? rows : picks, null, 2));
   } else {
     console.log(`\n=== NBA predictions (threshold ${pct(opts.threshold)}) ===\n`);
-    const printRow = (r: (typeof rows)[number]) => {
+    const printRow = (r: PredictionRow) => {
       const tag = r.pass ? 'PICK' : 'pass';
       console.log(
         `[${tag}] ${r.gameDate}  ${r.question}\n` +

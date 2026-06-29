@@ -42,13 +42,29 @@ Commit `prediction/data/*` after each session — the JSONL log is the system's 
 ## CLI (what the skill runs under the hood)
 
 ```bash
-npm run predict                       # picks above threshold for today's slate
+npm run predict                       # picks above threshold for today's slate (live APIs)
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
+npm run predict -- --input data/input.json          # research/offline mode (no live fetch)
+npm run predict -- --input data/input.json --save   # ...and log the picks
 npm run predict:score                 # grade pending picks, write data/review.md
 ```
+
+## Two run modes
+
+**Live mode** (default) fetches everything from the public APIs below. It needs outbound
+network access to `gamma-api.polymarket.com` and `site.api.espn.com`. In sandboxes with a
+strict egress allowlist these are blocked (you'll see `Host not in allowlist` / HTTP 403) —
+add those hosts to the environment's egress settings to use live mode.
+
+**Research / offline mode** (`--input <file>`) needs no live fetch. The session layer
+(Claude with WebSearch) gathers the slate, each team's net rating, injuries/rest, and the
+Polymarket prices, writes them into a JSON bundle, and the engine scores it. This is the
+reliable path when the direct APIs are blocked. See `data/input.example.json` for the shape;
+the `/nba-predict` skill writes `data/input.json` and runs this automatically. A game with no
+market price is never emitted as a confident pick — the market anchor is required.
 
 ## Data sources (all free, no API keys)
 
@@ -68,7 +84,8 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
-- `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
+- `src/predict.ts` — main CLI (live fetch or `--input` → score → picks)
+- `src/engine.ts` — shared scoring core + the research/offline input bundle (`bundleToInputs`, `computeRows`)
 - `src/score.ts` — grading + calibration + mistakes report
 - `src/model.ts` — probabilities, blending, market/game matching
 - `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer

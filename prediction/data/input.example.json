@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-22",
+  "games": [
+    {
+      "home": "Boston Celtics",
+      "away": "New York Knicks",
+      "homeRating": 6.1,
+      "awayRating": 2.4,
+      "marketHomePrice": 0.66,
+      "marketAwayPrice": 0.36,
+      "slug": "nba-nyk-bos-2026-10-22",
+      "conditionId": "0xexample1",
+      "adjustments": {
+        "BOS": { "points": -3.5, "reason": "Porzingis listed Out (rest)" }
+      },
+      "injuries": [
+        { "team": "NYK", "player": "Mitchell Robinson", "status": "Questionable" }
+      ]
+    },
+    {
+      "home": "Denver Nuggets",
+      "away": "Washington Wizards",
+      "homeRating": 5.0,
+      "awayRating": -8.5,
+      "marketHomePrice": 0.91,
+      "marketAwayPrice": 0.10
+    }
+  ]
+}
