@@ -93,3 +93,17 @@ See `.env.example` for the full list.
 - Never commit `.env`.
 - Use a dedicated wallet for bot trading.
 - Start with small limits before increasing size.
+
+## NBA prediction service
+
+This repo also ships a selective, calibrated predictor for Polymarket NBA moneyline
+markets, driven from a Claude Code session. Just run **`/nba-predict`** to get today's
+high-confidence picks (and `/nba-predict score` the next day to grade and tune them).
+
+- The skill lives in `.claude/skills/nba-predict/SKILL.md` — it orchestrates the whole
+  daily workflow (fetch markets + ratings, research game-day injuries/rest/motivation,
+  blend with the market, emit only picks above the confidence threshold).
+- The pipeline + design rationale (how it targets ~80% via selectivity, not magic) are in
+  [`prediction/README.md`](prediction/README.md).
+- One-time setup: allow `gamma-api.polymarket.com` and `site.api.espn.com` in the session's
+  network egress settings (see `prediction/README.md`).

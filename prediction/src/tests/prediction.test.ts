@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getJson, REQUIRED_HOSTS } from '../http.js';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
@@ -128,6 +129,29 @@ describe('model', () => {
 
   it('blend leans toward the market', () => {
     expect(blend(0.9, 0.7)).toBeCloseTo(0.65 * 0.7 + 0.35 * 0.9, 10);
+  });
+});
+
+describe('http egress handling', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('turns an allowlist 403 into one actionable error naming every required host', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response('Host not in allowlist: gamma-api.polymarket.com', { status: 403 }),
+      ),
+    );
+    await expect(getJson('https://gamma-api.polymarket.com/events', 0)).rejects.toThrow(
+      /network egress blocked/i,
+    );
+    try {
+      await getJson('https://gamma-api.polymarket.com/events', 0);
+    } catch (err) {
+      const msg = String(err);
+      for (const host of REQUIRED_HOSTS) expect(msg).toContain(host);
+      expect(msg).toMatch(/will not fabricate/i);
+    }
   });
 });
 

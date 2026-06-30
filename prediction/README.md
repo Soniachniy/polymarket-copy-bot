@@ -60,6 +60,19 @@ npm run predict:score                 # grade pending picks, write data/review.m
 | ESPN `.../injuries` | listed Out/Doubtful players |
 | Web search (session layer) | late-breaking lineups, rest, motivation |
 
+## Network egress (one-time setup)
+
+The CLI fetches live data directly, so the session's network policy must allow these hosts:
+
+- `gamma-api.polymarket.com`
+- `site.api.espn.com`
+
+In Claude Code on the web, set this when creating the environment (network egress / allowlist).
+If a host is missing, `npm run predict` stops with a message naming exactly what to add — it
+never fabricates a slate. See https://code.claude.com/docs/en/claude-code-on-the-web for how
+network policies are configured. Some sandboxes can't reach these endpoints at all; that is an
+environment limitation, not a bug in the predictor.
+
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
