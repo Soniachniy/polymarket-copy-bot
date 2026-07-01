@@ -3,6 +3,28 @@
 A selective, calibrated predictor for Polymarket NBA moneyline markets, designed to be driven
 from a Claude Code session via the `/nba-predict` skill.
 
+## Just run it (the intended workflow)
+
+You don't run the CLI by hand. Open a Claude Code session in this repo and type:
+
+```
+/nba-predict            # research tonight's slate and produce high-confidence picks
+/nba-predict score      # after games finish: grade the last batch and tune the model
+```
+
+The skill (`.claude/skills/nba-predict/SKILL.md`) is the "predefined tools and
+instructions": it runs the pipeline below, researches injuries/rest/motivation with web
+search, writes point adjustments, saves picks to the log, and reports PICKS + skipped games.
+Commit `prediction/data/*` after each session — the log is the system's memory.
+
+### Network access it needs
+
+The pipeline fetches two hosts. In a Claude Code **web** session, pick a network policy
+that allows them (a `403 Host not in allowlist` means the policy is blocking data, not a bug):
+
+- `gamma-api.polymarket.com`
+- `site.api.espn.com`
+
 ## How it reaches a ~80% hit rate (read this first)
 
 No model predicts every NBA game at 80% — the betting market itself is only ~68-70% accurate

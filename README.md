@@ -93,3 +93,11 @@ See `.env.example` for the full list.
 - Never commit `.env`.
 - Use a dedicated wallet for bot trading.
 - Start with small limits before increasing size.
+
+## NBA prediction service
+
+Separate from the copy bot, this repo also ships a selective, calibrated predictor for
+Polymarket NBA moneyline markets (target ~80% hit rate through selectivity, not volume).
+Run it from a Claude Code session with `/nba-predict` (produce today's picks) and
+`/nba-predict score` (grade + tune after games finish). See `prediction/README.md` and the
+skill at `.claude/skills/nba-predict/SKILL.md`.
