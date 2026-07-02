@@ -24,31 +24,55 @@ This service answers "who will win", not "is this price +EV".
 
 ## Daily workflow
 
+The whole system is driven from a Claude Code session by the **`/nba-predict` skill**
+(`.claude/skills/nba-predict/SKILL.md`). You don't run commands by hand — you type the
+command and Claude executes the predefined protocol.
+
 ```
 You:    /nba-predict
-Claude: runs the pipeline, researches the slate, writes adjustments, saves picks,
-        reports PICKS + skipped games
+Claude: gets today's slate + market prices, researches injuries/rest/lineups,
+        writes adjustments, computes picks at the 0.78 threshold, saves them,
+        reports PICKS + the games it skipped (and why)
 
 (next day / after games finish)
 
 You:    /nba-predict score
-Claude: grades the log vs ESPN finals, writes prediction/data/review.md,
+Claude: grades the log vs final scores, writes prediction/data/review.md,
         classifies each miss (variance / information miss / model error),
-        proposes and applies tuning
+        proposes and applies one tuning change
 ```
 
 Commit `prediction/data/*` after each session — the JSONL log is the system's memory.
 
+## Two data paths (why it runs anywhere)
+
+The model math is identical either way — both paths call `src/core.ts`.
+
+1. **Direct API (fast path):** `npm run predict` pulls Polymarket + ESPN directly. This only
+   works if the runtime can reach `gamma-api.polymarket.com` and `site.api.espn.com`. In a
+   network-restricted Claude Code web session these hosts are blocked (HTTP 403); add them to
+   the environment's egress allowlist to enable this path.
+2. **In-session research (works anywhere):** when the APIs are blocked, the skill gathers the
+   same inputs (point differentials, market prices, injuries) via `WebSearch`/`WebFetch`,
+   writes them to a JSON file, and runs `npm run predict:compute -- --input <file>` — the same
+   probabilities, no direct host access required.
+
 ## CLI (what the skill runs under the hood)
 
 ```bash
-npm run predict                       # picks above threshold for today's slate
+npm run predict                       # picks above threshold for today's slate (direct API)
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
+npm run predict:compute -- --input slate.json --all   # offline: score a slate you researched
+npm run predict:compute -- --input slate.json --save  # offline: save those picks to the log
 npm run predict:score                 # grade pending picks, write data/review.md
 ```
+
+The `--input` file schema for `predict:compute` is documented at the top of
+`prediction/src/compute.ts` (per-game: home/away abbrs, point diffs, market prices, optional
+confirmed-injury point adjustments).
 
 ## Data sources (all free, no API keys)
 
@@ -68,7 +92,9 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
-- `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
+- `src/predict.ts` — direct-API CLI (fetch → match → model → blend → picks)
+- `src/compute.ts` — offline CLI: same math on a slate you researched in-session
+- `src/core.ts` — shared forecast/blend/threshold/save logic used by both CLIs
 - `src/score.ts` — grading + calibration + mistakes report
 - `src/model.ts` — probabilities, blending, market/game matching
 - `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
