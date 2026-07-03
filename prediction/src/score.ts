@@ -2,11 +2,62 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchScoreboard } from './espn.js';
+import { resolveTeam } from './teams.js';
 import type { GameInfo, Prediction } from './types.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
 const REVIEW_FILE = join(DATA_DIR, 'review.md');
+
+interface SessionFinal {
+  date: string;
+  home: string;
+  away: string;
+  homeScore?: number;
+  awayScore?: number;
+  /** Optional explicit winner (team name or abbr) when scores aren't handy. */
+  winner?: string;
+}
+
+/**
+ * Session-gathered final scores, used to grade offline when ESPN is blocked by
+ * network egress policy. Produced by the /nba-predict skill via WebSearch.
+ * Returns finished GameInfo objects keyed by date, mirroring fetchScoreboard.
+ */
+function loadFinals(path: string): Map<string, GameInfo[]> {
+  const raw = JSON.parse(readFileSync(path, 'utf8')) as { finals?: SessionFinal[] } | SessionFinal[];
+  const finals = Array.isArray(raw) ? raw : (raw.finals ?? []);
+  const byDate = new Map<string, GameInfo[]>();
+  for (const f of finals) {
+    const homeAbbr = resolveTeam(f.home) ?? f.home.toUpperCase();
+    const awayAbbr = resolveTeam(f.away) ?? f.away.toUpperCase();
+    let homeScore = f.homeScore;
+    let awayScore = f.awayScore;
+    if (homeScore === undefined || awayScore === undefined) {
+      // Fall back to an explicit winner: synthesize a 1-0 score so winnerOf works.
+      const winAbbr = f.winner ? (resolveTeam(f.winner) ?? f.winner.toUpperCase()) : undefined;
+      if (!winAbbr) {
+        throw new Error(`Final for ${f.away} @ ${f.home} on ${f.date} needs scores or a "winner".`);
+      }
+      homeScore = winAbbr === homeAbbr ? 1 : 0;
+      awayScore = winAbbr === homeAbbr ? 0 : 1;
+    }
+    const game: GameInfo = {
+      espnId: '',
+      date: f.date,
+      homeAbbr,
+      awayAbbr,
+      startTimeUtc: '',
+      completed: true,
+      homeScore,
+      awayScore,
+    };
+    const list = byDate.get(f.date) ?? [];
+    list.push(game);
+    byDate.set(f.date, list);
+  }
+  return byDate;
+}
 
 function loadLog(): Prediction[] {
   if (!existsSync(LOG_FILE)) {
@@ -26,15 +77,24 @@ function winnerOf(g: GameInfo): string | null {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  const finalsIdx = argv.indexOf('--finals');
+  const finalsPath = finalsIdx >= 0 ? argv[finalsIdx + 1] : undefined;
+
   const log = loadLog();
   const pending = log.filter((p) => p.status === 'pending');
   const pendingDates = [...new Set(pending.map((p) => p.gameDate))];
 
   console.error(`${log.length} logged prediction(s), ${pending.length} pending across ${pendingDates.length} date(s).`);
 
-  const resultsByDate = new Map<string, GameInfo[]>();
-  for (const date of pendingDates) {
-    resultsByDate.set(date, await fetchScoreboard(date));
+  let resultsByDate = new Map<string, GameInfo[]>();
+  if (finalsPath) {
+    console.error(`Grading against session-gathered finals from ${finalsPath} (offline mode)...`);
+    resultsByDate = loadFinals(finalsPath);
+  } else {
+    for (const date of pendingDates) {
+      resultsByDate.set(date, await fetchScoreboard(date));
+    }
   }
 
   for (const p of pending) {

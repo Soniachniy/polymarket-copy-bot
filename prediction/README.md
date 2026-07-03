@@ -42,7 +42,7 @@ Commit `prediction/data/*` after each session — the JSONL log is the system's 
 ## CLI (what the skill runs under the hood)
 
 ```bash
-npm run predict                       # picks above threshold for today's slate
+npm run predict                       # picks above threshold for today's slate (live fetch)
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
@@ -50,15 +50,43 @@ npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
 ```
 
+### Offline mode (when live endpoints are blocked)
+
+Many environments block direct egress to `gamma-api.polymarket.com` / ESPN (you'll see
+`Host not in allowlist` / HTTP 403). The `/nba-predict` skill then gathers the slate with
+WebSearch/WebFetch and feeds it in — no direct fetch required:
+
+```bash
+npm run predict -- --input prediction/data/session-input.json --save
+npm run predict:score -- --finals prediction/data/finals.json
+```
+
+The input schemas (Claude-authorable: team names or abbrs, prices as probabilities or cents) are in
+`.claude/skills/nba-predict/references/schemas.md`. This is what makes the system work regardless of
+the environment's network policy.
+
+## Running it: the `/nba-predict` skill
+
+The whole thing is driven from a Claude Code session. In a fresh session, just run:
+
+```
+/nba-predict          # tonight's picks (or add score to grade yesterday's)
+/nba-predict score
+```
+
+The skill (`.claude/skills/nba-predict/SKILL.md`) contains all the instructions — it tries the live
+CLI, falls back to session-gathered data when blocked, encodes injuries/rest as adjustments, saves
+picks, and reports. You don't need to remember the CLI flags.
+
 ## Data sources (all free, no API keys)
 
 | Source | Used for |
 |---|---|
-| `gamma-api.polymarket.com/events?tag_slug=nba` | active NBA markets, prices |
-| ESPN `site.api.espn.com .../scoreboard` | schedule, home/away, final scores |
-| ESPN `.../standings` | W-L, point differential (power ratings) |
-| ESPN `.../injuries` | listed Out/Doubtful players |
-| Web search (session layer) | late-breaking lineups, rest, motivation |
+| `gamma-api.polymarket.com/events?tag_slug=nba` | active NBA markets, prices (live mode) |
+| ESPN `site.api.espn.com .../scoreboard` | schedule, home/away, final scores (live mode) |
+| ESPN `.../standings` | W-L, point differential (power ratings) (live mode) |
+| ESPN `.../injuries` | listed Out/Doubtful players (live mode) |
+| Web search / fetch (session layer) | the whole slate in offline mode + late-breaking lineups, rest, motivation |
 
 ## Model
 
@@ -71,7 +99,8 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 - `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
 - `src/score.ts` — grading + calibration + mistakes report
 - `src/model.ts` — probabilities, blending, market/game matching
-- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
+- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — live data layer
+- `src/session-input.ts` — offline slate loader (parses session-gathered JSON)
 - `data/adjustments.json` — per-team point adjustments for today (written each session)
 - `data/predictions.jsonl` — append-only prediction log (the system's memory)
 - `data/review.md` — latest grading report

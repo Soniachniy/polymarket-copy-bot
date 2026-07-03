@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { fetchInjuries, fetchScoreboard, fetchStandings } from './espn.js';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb } from './model.js';
 import { fetchNbaMarkets, isMoneylineMarket } from './polymarket.js';
-import type { AdjustmentsFile, Prediction } from './types.js';
+import { loadSessionInput } from './session-input.js';
+import type { AdjustmentsFile, GameInfo, InjuryReport, NbaMarket, Prediction, TeamRating } from './types.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 export const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
@@ -18,6 +19,7 @@ interface CliOptions {
   json: boolean;
   dates: string[]; // YYYY-MM-DD
   showAll: boolean;
+  input?: string; // path to a session-gathered data file (offline mode)
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -35,8 +37,46 @@ function parseArgs(argv: string[]): CliOptions {
     else if (arg === '--all') opts.showAll = true;
     else if (arg === '--threshold') opts.threshold = Number(argv[++i]);
     else if (arg === '--date') opts.dates.push(argv[++i]!);
+    else if (arg === '--input') opts.input = argv[++i]!;
   }
   return opts;
+}
+
+interface SlateData {
+  markets: NbaMarket[];
+  ratings: Map<string, TeamRating>;
+  injuries: InjuryReport[];
+  games: GameInfo[];
+}
+
+/**
+ * Load tonight's slate either from the live endpoints or, when those are blocked
+ * by network egress policy, from a session-gathered JSON file (--input). The
+ * offline file is produced by the /nba-predict skill using WebSearch/WebFetch.
+ */
+async function gatherSlate(opts: CliOptions): Promise<SlateData> {
+  if (opts.input) {
+    console.error(`Loading session-gathered slate from ${opts.input} (offline mode)...`);
+    const { markets, ratings, injuries, games } = loadSessionInput(opts.input);
+    console.error(
+      `Session input: ${games.length} game(s), ${ratings.size} team rating(s), ${injuries.length} injury note(s).`,
+    );
+    return { markets, ratings, injuries, games };
+  }
+
+  console.error('Fetching Polymarket NBA markets, ESPN scoreboard, standings, injuries...');
+  const dates = opts.dates.length > 0 ? opts.dates : [undefined];
+  const [markets, ratings, injuries, ...scoreboards] = await Promise.all([
+    fetchNbaMarkets(),
+    fetchStandings(),
+    fetchInjuries().catch((e) => {
+      console.error(`(injuries fetch failed, continuing without: ${e})`);
+      return [] as InjuryReport[];
+    }),
+    ...dates.map((d) => fetchScoreboard(d)),
+  ]);
+  const games = scoreboards.flat().filter((g) => !g.completed);
+  return { markets, ratings, injuries, games };
 }
 
 function loadAdjustments(): AdjustmentsFile {
@@ -51,18 +91,7 @@ function pct(p: number): string {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
 
-  console.error('Fetching Polymarket NBA markets, ESPN scoreboard, standings, injuries...');
-  const dates = opts.dates.length > 0 ? opts.dates : [undefined];
-  const [markets, ratings, injuries, ...scoreboards] = await Promise.all([
-    fetchNbaMarkets(),
-    fetchStandings(),
-    fetchInjuries().catch((e) => {
-      console.error(`(injuries fetch failed, continuing without: ${e})`);
-      return [];
-    }),
-    ...dates.map((d) => fetchScoreboard(d)),
-  ]);
-  const games = scoreboards.flat().filter((g) => !g.completed);
+  const { markets, ratings, injuries, games } = await gatherSlate(opts);
   const adjustments = loadAdjustments();
 
   const moneylines = markets.filter(isMoneylineMarket);

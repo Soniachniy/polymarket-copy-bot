@@ -3,6 +3,9 @@ dist/
 *.tsbuildinfo
 *.md
 !README.md
+# Claude Code skill + slash command that drive the NBA predictor must be tracked
+!.claude/commands/**/*.md
+!.claude/skills/**/*.md
 .env
 .polymarket-api-creds
 backtest/data/
