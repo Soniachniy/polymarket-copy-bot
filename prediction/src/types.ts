@@ -73,3 +73,33 @@ export interface Prediction {
   status: 'pending' | 'correct' | 'incorrect' | 'void';
   actualWinner?: string;
 }
+
+/**
+ * A single game described by hand (or by Claude from web research) for the
+ * network-independent `--manual` path. Only `home`, `away`, and one market
+ * price are strictly required; ratings and adjustments are optional and the
+ * model degrades gracefully when they are absent.
+ */
+export interface ManualGame {
+  home: string; // team name or abbr, e.g. "BOS" or "Celtics"
+  away: string;
+  /** De-vigged or raw Polymarket price for the home team winning, 0..1. */
+  marketHome?: number;
+  /** Price for the away team; if omitted, derived as 1 - marketHome. */
+  marketAway?: number;
+  /** Season net rating / average point differential per game. Optional. */
+  homeNetRating?: number;
+  awayNetRating?: number;
+  /** Point adjustments applied to the game margin (star out, rest, B2B, ...). */
+  adjustments?: Array<{ team: string; points: number; reason: string }>;
+  conditionId?: string;
+  slug?: string;
+  question?: string;
+}
+
+export interface ManualFile {
+  /** Game date these picks are for, YYYY-MM-DD. */
+  date: string;
+  games: ManualGame[];
+}
+

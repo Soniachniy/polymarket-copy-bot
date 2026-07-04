@@ -1,8 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchScoreboard } from './espn.js';
+import { loadScoreboard } from './sources.js';
 import type { GameInfo, Prediction } from './types.js';
+
+const OFFLINE = process.argv.includes('--offline');
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
@@ -34,7 +36,7 @@ async function main() {
 
   const resultsByDate = new Map<string, GameInfo[]>();
   for (const date of pendingDates) {
-    resultsByDate.set(date, await fetchScoreboard(date));
+    resultsByDate.set(date, await loadScoreboard(date, OFFLINE));
   }
 
   for (const p of pending) {
