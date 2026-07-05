@@ -42,13 +42,32 @@ Commit `prediction/data/*` after each session — the JSONL log is the system's 
 ## CLI (what the skill runs under the hood)
 
 ```bash
-npm run predict                       # picks above threshold for today's slate
+npm run predict                       # picks above threshold for today's slate (live APIs)
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
+
+# Web-research fallback — same engine on a hand-assembled slate (see "Network access" below)
+npm run predict:slate -- data/slate.json --all      # review every game in the slate
+npm run predict:slate -- data/slate.json --save     # emit + log picks >= threshold
 ```
+
+## Network access (read this if `predict` fails with a 403 / allowlist error)
+
+The live path fetches two hosts directly: `site.api.espn.com` and `gamma-api.polymarket.com`.
+Some environments (locked-down web sandboxes) block outbound egress to arbitrary hosts, so the
+direct `fetch` — and even `WebFetch` — return HTTP 403 "Host not in allowlist". Two options:
+
+1. **Allowlist the two hosts** in your environment's network egress settings → the fast live path
+   works unchanged.
+2. **Use the slate path** (`predict:slate`). `WebSearch` still works when direct fetch is blocked,
+   so the `/nba-predict` skill gathers the schedule, team net ratings, Polymarket prices, and
+   injuries via web search, writes `data/slate.json`, and runs the *identical* model/blend/selection
+   engine on it. No allowlisting required; works in any environment. Schema: `src/slate.ts`.
+
+The `/nba-predict` skill tries the live path first and falls back to the slate path automatically.
 
 ## Data sources (all free, no API keys)
 
@@ -68,11 +87,15 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
-- `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
+- `.claude/skills/nba-predict/SKILL.md` — the operator instructions the `/nba-predict` skill runs
+- `src/predict.ts` — live-API CLI (fetch → match → model → blend → picks)
+- `src/slate.ts` — web-research CLI (hand-assembled slate → same engine)
+- `src/engine.ts` — shared core: model → market blend → pick → threshold → logging
 - `src/score.ts` — grading + calibration + mistakes report
 - `src/model.ts` — probabilities, blending, market/game matching
 - `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
-- `data/adjustments.json` — per-team point adjustments for today (written each session)
+- `data/adjustments.json` — per-team point adjustments for today (API path; written each session)
+- `data/slate.json` — hand-assembled slate for the web-research path (written each session)
 - `data/predictions.jsonl` — append-only prediction log (the system's memory)
 - `data/review.md` — latest grading report
 
