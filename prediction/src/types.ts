@@ -56,6 +56,39 @@ export interface ManualAdjustment {
 
 export type AdjustmentsFile = Record<string, ManualAdjustment>;
 
+/**
+ * A self-contained per-game record produced by the session layer (Claude with
+ * web search) when the sandbox cannot reach the live APIs directly. Everything
+ * the deterministic model needs is inlined so no network access is required.
+ */
+export interface InputGame {
+  gameDate: string; // YYYY-MM-DD
+  homeAbbr: string;
+  awayAbbr: string;
+  /** Season net rating / point differential per game for each side. */
+  homePointDiff: number;
+  awayPointDiff: number;
+  homeRecord?: [wins: number, losses: number];
+  awayRecord?: [wins: number, losses: number];
+  /** De-vigged Polymarket probability the HOME team wins (0..1). Omit if unknown. */
+  marketHomeProb?: number;
+  /** Outcome labels exactly as they appear on Polymarket (default: team abbr). */
+  homeOutcome?: string;
+  awayOutcome?: string;
+  slug?: string;
+  conditionId?: string;
+  question?: string;
+  injuries?: InjuryReport[];
+  /** Per-game point adjustments keyed by team abbr (rest, motivation, late news). */
+  adjustments?: AdjustmentsFile;
+}
+
+export interface InputBundle {
+  /** Optional slate date for reference / logging. */
+  date?: string;
+  games: InputGame[];
+}
+
 export interface Prediction {
   ts: string;
   gameDate: string;

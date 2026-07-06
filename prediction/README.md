@@ -1,7 +1,21 @@
 # NBA prediction service for Polymarket
 
 A selective, calibrated predictor for Polymarket NBA moneyline markets, designed to be driven
-from a Claude Code session via the `/nba-predict` skill.
+from a Claude Code session via the `/nba-predict` skill (`.claude/skills/nba-predict/SKILL.md`).
+
+**Just run `/nba-predict` in a session.** The skill orchestrates everything below — it fetches
+or researches the slate, encodes game-day adjustments, runs the engine, and reports picks.
+`/nba-predict score` grades past picks and tells you how to tune. You don't call the CLI by hand.
+
+## Two ways the data reaches the engine
+
+1. **Live** — the CLI fetches Polymarket + ESPN directly. Works only where outbound network
+   egress to `gamma-api.polymarket.com` and `site.api.espn.com` is allowed.
+2. **Offline / session-injected** — when egress is blocked (common in locked-down Claude Code
+   web sessions), the session layer (Claude, via web search) gathers the slate itself and writes
+   a self-contained JSON bundle that the engine scores with **no network access**. This is the
+   robust default and keeps the deterministic math identical to the live path (both go through
+   `src/core.ts`).
 
 ## How it reaches a ~80% hit rate (read this first)
 
@@ -42,13 +56,25 @@ Commit `prediction/data/*` after each session — the JSONL log is the system's 
 ## CLI (what the skill runs under the hood)
 
 ```bash
+# Live path (needs network egress to Polymarket + ESPN)
 npm run predict                       # picks above threshold for today's slate
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
+
+# Offline path (no network — the session provides the data)
+npm run predict -- --input data/input-2026-10-24.json --all    # score a session-built bundle
+npm run predict -- --input data/input-2026-10-24.json --save   # ...and log the picks
+npm run predict:score -- --results data/results-2026-10-24.json # grade from session-provided finals
 ```
+
+See `prediction/sample-input.json` for the input-bundle schema. A results file is
+`{ "YYYY-MM-DD": [ { "homeAbbr", "awayAbbr", "homeScore", "awayScore" } ] }`.
+
+Games in a bundle with no `marketHomeProb` are scored **model-only** and are never emitted as
+auto-picks — a deliberate safety valve, since the market anchor is 65% of the signal.
 
 ## Data sources (all free, no API keys)
 
@@ -68,10 +94,12 @@ then blended with the de-vigged market price at 65% market weight. Constants liv
 
 ## Files
 
-- `src/predict.ts` — main CLI (fetch → match → model → blend → picks)
-- `src/score.ts` — grading + calibration + mistakes report
+- `src/predict.ts` — main CLI; live fetch **or** `--input` offline bundle → picks
+- `src/core.ts` — the single scoring path (blend, market anchor, render, save) shared by both
+- `src/offline.ts` — turns a session-provided input bundle into scored rows (no network)
+- `src/score.ts` — grading + calibration + mistakes report (live ESPN or `--results` offline)
 - `src/model.ts` — probabilities, blending, market/game matching
-- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — data layer
+- `src/polymarket.ts`, `src/espn.ts`, `src/teams.ts` — live data layer
 - `data/adjustments.json` — per-team point adjustments for today (written each session)
 - `data/predictions.jsonl` — append-only prediction log (the system's memory)
 - `data/review.md` — latest grading report

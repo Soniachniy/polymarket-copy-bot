@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-24",
+  "games": [
+    {
+      "gameDate": "2026-10-24",
+      "homeAbbr": "OKC",
+      "awayAbbr": "WAS",
+      "homePointDiff": 9.2,
+      "awayPointDiff": -7.8,
+      "homeRecord": [3, 0],
+      "awayRecord": [0, 3],
+      "marketHomeProb": 0.86,
+      "homeOutcome": "Thunder",
+      "awayOutcome": "Wizards",
+      "conditionId": "0xEXAMPLE_okc_was",
+      "question": "Thunder vs. Wizards",
+      "injuries": [{ "teamAbbr": "WAS", "player": "Starting Guard", "status": "Out" }],
+      "adjustments": { "WAS": { "points": -2, "reason": "starting guard ruled out" } }
+    },
+    {
+      "gameDate": "2026-10-24",
+      "homeAbbr": "LAL",
+      "awayAbbr": "BOS",
+      "homePointDiff": 2.1,
+      "awayPointDiff": 4.4,
+      "marketHomeProb": 0.47,
+      "homeOutcome": "Lakers",
+      "awayOutcome": "Celtics",
+      "conditionId": "0xEXAMPLE_lal_bos",
+      "question": "Lakers vs. Celtics",
+      "_comment": "Coin flip — will be scored but will not clear the 78% threshold. Correctly skipped."
+    },
+    {
+      "gameDate": "2026-10-24",
+      "homeAbbr": "DEN",
+      "awayAbbr": "POR",
+      "homePointDiff": 6.0,
+      "awayPointDiff": -4.0,
+      "conditionId": "0xEXAMPLE_den_por",
+      "question": "Nuggets vs. Trail Blazers",
+      "_comment": "No marketHomeProb provided -> model-only -> never an auto-pick (safety valve)."
+    }
+  ]
+}

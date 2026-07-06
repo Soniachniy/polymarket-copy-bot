@@ -2,11 +2,42 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchScoreboard } from './espn.js';
+import { normalizeEspnAbbr } from './teams.js';
 import type { GameInfo, Prediction } from './types.js';
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
 const LOG_FILE = join(DATA_DIR, 'predictions.jsonl');
 const REVIEW_FILE = join(DATA_DIR, 'review.md');
+
+/**
+ * Offline final scores provided by the session layer when the sandbox cannot
+ * reach ESPN. Shape: { "YYYY-MM-DD": [{homeAbbr, awayAbbr, homeScore, awayScore}] }.
+ */
+type ResultsFile = Record<
+  string,
+  Array<{ homeAbbr: string; awayAbbr: string; homeScore: number; awayScore: number }>
+>;
+
+function loadResultsFile(path: string): Map<string, GameInfo[]> {
+  const raw = JSON.parse(readFileSync(path, 'utf8')) as ResultsFile;
+  const map = new Map<string, GameInfo[]>();
+  for (const [date, finals] of Object.entries(raw)) {
+    map.set(
+      date,
+      finals.map((f) => ({
+        espnId: '',
+        date,
+        homeAbbr: normalizeEspnAbbr(f.homeAbbr),
+        awayAbbr: normalizeEspnAbbr(f.awayAbbr),
+        startTimeUtc: '',
+        completed: true,
+        homeScore: f.homeScore,
+        awayScore: f.awayScore,
+      })),
+    );
+  }
+  return map;
+}
 
 function loadLog(): Prediction[] {
   if (!existsSync(LOG_FILE)) {
@@ -26,15 +57,24 @@ function winnerOf(g: GameInfo): string | null {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  const resultsIdx = argv.indexOf('--results');
+  const resultsPath = resultsIdx >= 0 ? argv[resultsIdx + 1] : undefined;
+
   const log = loadLog();
   const pending = log.filter((p) => p.status === 'pending');
   const pendingDates = [...new Set(pending.map((p) => p.gameDate))];
 
   console.error(`${log.length} logged prediction(s), ${pending.length} pending across ${pendingDates.length} date(s).`);
 
-  const resultsByDate = new Map<string, GameInfo[]>();
-  for (const date of pendingDates) {
-    resultsByDate.set(date, await fetchScoreboard(date));
+  let resultsByDate = new Map<string, GameInfo[]>();
+  if (resultsPath) {
+    console.error(`Offline grading from ${resultsPath} (no ESPN fetch).`);
+    resultsByDate = loadResultsFile(resultsPath);
+  } else {
+    for (const date of pendingDates) {
+      resultsByDate.set(date, await fetchScoreboard(date));
+    }
   }
 
   for (const p of pending) {

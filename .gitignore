@@ -6,3 +6,7 @@ dist/
 .env
 .polymarket-api-creds
 backtest/data/
+
+# Ship the Claude Code skill (its SKILL.md must be tracked despite *.md above)
+!.claude/
+!.claude/**

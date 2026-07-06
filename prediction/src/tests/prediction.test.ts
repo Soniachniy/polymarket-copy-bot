@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { buildPickRow, marketHomeProb } from '../core.js';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
+import { rowsFromBundle } from '../offline.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
-import type { GameInfo, TeamRating } from '../types.js';
+import type { GameInfo, InputBundle, TeamRating } from '../types.js';
 
 describe('teams', () => {
   it('resolves common Polymarket outcome labels', () => {
@@ -128,6 +130,129 @@ describe('model', () => {
 
   it('blend leans toward the market', () => {
     expect(blend(0.9, 0.7)).toBeCloseTo(0.65 * 0.7 + 0.35 * 0.9, 10);
+  });
+});
+
+describe('core.buildPickRow', () => {
+  const rating = (abbr: string, pointDiff: number): TeamRating => ({
+    abbr,
+    wins: 3,
+    losses: 0,
+    pointDiff,
+    winPct: 1,
+  });
+  const base = {
+    gameDate: '2026-10-24',
+    slug: 's',
+    conditionId: '0x1',
+    question: 'q',
+    homeAbbr: 'OKC',
+    awayAbbr: 'WAS',
+    homeOutcome: 'Thunder',
+    awayOutcome: 'Wizards',
+    injuries: [],
+    adjustments: {},
+    threshold: 0.78,
+  };
+
+  it('blends model with market and picks the favorite', () => {
+    const row = buildPickRow({
+      ...base,
+      homeRating: rating('OKC', 9),
+      awayRating: rating('WAS', -8),
+      marketHomeProb: 0.86,
+    });
+    expect(row.pickTeam).toBe('OKC');
+    expect(row.hasMarket).toBe(true);
+    expect(row.probability).toBeCloseTo(0.65 * 0.86 + 0.35 * row.pModel, 6);
+    expect(row.pass).toBe(true);
+  });
+
+  it('never passes a model-only game (no market price)', () => {
+    const row = buildPickRow({
+      ...base,
+      homeRating: rating('OKC', 12),
+      awayRating: rating('WAS', -6),
+    });
+    expect(row.hasMarket).toBe(false);
+    expect(row.probability).toBeCloseTo(row.pModel, 10); // pure model, no blend
+    expect(row.pass).toBe(false); // model-only games are never auto-picks
+    expect(row.rationale).toContain('NO MARKET PRICE');
+  });
+
+  it('picks the away side when the away team is favored', () => {
+    const row = buildPickRow({
+      ...base,
+      homeRating: rating('OKC', -5),
+      awayRating: rating('WAS', 6),
+      marketHomeProb: 0.3,
+    });
+    expect(row.pickTeam).toBe('WAS');
+    expect(row.pickOutcome).toBe('Wizards');
+  });
+
+  it('marketHomeProb de-vigs a two-price array', () => {
+    const p = marketHomeProb([0.75, 0.3], 0)!;
+    expect(p).toBeCloseTo(0.75 / 1.05, 6);
+    expect(marketHomeProb([0.5, 0.3, 0.2], 0)).toBeUndefined();
+  });
+});
+
+describe('offline.rowsFromBundle', () => {
+  const bundle: InputBundle = {
+    date: '2026-10-24',
+    games: [
+      {
+        gameDate: '2026-10-24',
+        homeAbbr: 'OKC',
+        awayAbbr: 'WAS',
+        homePointDiff: 9,
+        awayPointDiff: -8,
+        marketHomeProb: 0.86,
+        conditionId: '0xokc',
+      },
+      {
+        gameDate: '2026-10-24',
+        homeAbbr: 'LAL',
+        awayAbbr: 'BOS',
+        homePointDiff: 2,
+        awayPointDiff: 4,
+        marketHomeProb: 0.47,
+        conditionId: '0xlal',
+      },
+    ],
+  };
+
+  it('scores every game and sorts by confidence', () => {
+    const rows = rowsFromBundle(bundle, 0.78);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.probability).toBeGreaterThanOrEqual(rows[1]!.probability);
+    const picks = rows.filter((r) => r.pass);
+    expect(picks).toHaveLength(1);
+    expect(picks[0]!.pickTeam).toBe('OKC');
+  });
+
+  it('applies per-game adjustments and normalizes ESPN abbrs', () => {
+    const rows = rowsFromBundle(
+      {
+        games: [
+          {
+            gameDate: '2026-10-24',
+            homeAbbr: 'GS', // ESPN-style abbr, should normalize to GSW
+            awayAbbr: 'SA',
+            homePointDiff: 3,
+            awayPointDiff: 3,
+            marketHomeProb: 0.55,
+            adjustments: { GSW: { points: -6, reason: 'star out' } },
+          },
+        ],
+      },
+      0.78,
+    );
+    expect(rows[0]!.pickTeam).toBeDefined();
+    expect(rows[0]!.rationale).toContain('star out');
+    // GSW normalized from "GS"; adjustment keyed by GSW must apply.
+    expect(rows[0]!.rationale).toContain('GSW');
   });
 });
 
