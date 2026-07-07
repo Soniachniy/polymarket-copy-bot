@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '../model.js';
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
+import { rowsFromSlate } from '../slate.js';
 import type { GameInfo, TeamRating } from '../types.js';
 
 describe('teams', () => {
@@ -159,5 +160,67 @@ describe('matching', () => {
     const matched = matchMarketsToGames(markets, games);
     expect(matched).toHaveLength(1);
     expect(matched[0]!.homeIdx).toBe(1); // Pacers are home
+  });
+});
+
+describe('slate path (web-research fallback)', () => {
+  it('picks the strong side above threshold and skips coin flips', () => {
+    const rows = rowsFromSlate({
+      threshold: 0.78,
+      games: [
+        {
+          date: '2026-11-15',
+          home: 'Thunder',
+          away: 'Wizards',
+          homeNetRating: 9.5,
+          awayNetRating: -8.0,
+          marketHomePrice: 0.9,
+        },
+        {
+          date: '2026-11-15',
+          home: 'Lakers',
+          away: 'Celtics',
+          homeNetRating: 2.1,
+          awayNetRating: 4.8,
+          marketHomePrice: 0.44,
+        },
+      ],
+    });
+    expect(rows).toHaveLength(2);
+    const okc = rows.find((r) => r.pickTeam === 'OKC')!;
+    expect(okc.pass).toBe(true);
+    expect(okc.probability).toBeGreaterThan(0.85);
+    // The Lakers/Celtics game is a near coin flip after blending -> must not clear 0.78.
+    const laGame = rows.find((r) => r.gameDate === '2026-11-15' && r.pickTeam !== 'OKC')!;
+    expect(laGame.pass).toBe(false);
+  });
+
+  it('applies per-team adjustments by abbr', () => {
+    const base = rowsFromSlate({
+      games: [{ date: '2026-11-15', home: 'Lakers', away: 'Celtics', homeNetRating: 2, awayNetRating: 5, marketHomePrice: 0.44 }],
+    })[0]!;
+    const adjusted = rowsFromSlate({
+      games: [{ date: '2026-11-15', home: 'Lakers', away: 'Celtics', homeNetRating: 2, awayNetRating: 5, marketHomePrice: 0.44 }],
+      adjustments: { BOS: { points: -6, reason: 'Tatum out' } },
+    })[0]!;
+    // Weakening Boston must raise the Lakers' model win probability vs the unadjusted run.
+    expect(adjusted.expectedMargin).toBeGreaterThan(base.expectedMargin);
+  });
+
+  it('defaults marketAwayPrice to 1 - marketHomePrice and de-vigs cleanly', () => {
+    const [row] = rowsFromSlate({
+      games: [{ date: '2026-11-15', home: 'Nuggets', away: 'Jazz', homeNetRating: 6, awayNetRating: -4, marketHomePrice: 0.8 }],
+    });
+    expect(row!.pMarket).toBeCloseTo(0.8, 5); // home is the pick; market prob ~ 0.8
+  });
+
+  it('drops games with unresolvable team names or impossible prices', () => {
+    const rows = rowsFromSlate({
+      games: [
+        { date: '2026-11-15', home: 'Not A Team', away: 'Celtics', homeNetRating: 0, awayNetRating: 0, marketHomePrice: 0.5 },
+        { date: '2026-11-15', home: 'Lakers', away: 'Celtics', homeNetRating: 0, awayNetRating: 0, marketHomePrice: 1.5 },
+      ],
+    });
+    expect(rows).toHaveLength(0);
   });
 });

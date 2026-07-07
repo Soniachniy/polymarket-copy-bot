@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "predict": "tsx prediction/src/predict.ts",
+    "predict:slate": "tsx prediction/src/slate.ts",
     "predict:score": "tsx prediction/src/score.ts"
   },
   "keywords": [],
