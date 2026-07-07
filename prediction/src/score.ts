@@ -19,37 +19,39 @@ function loadLog(): Prediction[] {
     .map((l) => JSON.parse(l) as Prediction);
 }
 
-function winnerOf(g: GameInfo): string | null {
+export function winnerOf(g: GameInfo): string | null {
   if (!g.completed || g.homeScore === undefined || g.awayScore === undefined) return null;
   if (g.homeScore === g.awayScore) return null;
   return g.homeScore > g.awayScore ? g.homeAbbr : g.awayAbbr;
 }
 
-async function main() {
-  const log = loadLog();
-  const pending = log.filter((p) => p.status === 'pending');
-  const pendingDates = [...new Set(pending.map((p) => p.gameDate))];
-
-  console.error(`${log.length} logged prediction(s), ${pending.length} pending across ${pendingDates.length} date(s).`);
-
-  const resultsByDate = new Map<string, GameInfo[]>();
-  for (const date of pendingDates) {
-    resultsByDate.set(date, await fetchScoreboard(date));
-  }
-
-  for (const p of pending) {
+/**
+ * Grade still-pending picks against fetched finals, mutating status/actualWinner in place.
+ * Picks already graded by hand (status set in the JSONL, per the offline fallback) are left
+ * untouched. Dates with no fetched results simply stay pending. Returns how many were newly graded.
+ */
+export function gradePending(log: Prediction[], resultsByDate: Map<string, GameInfo[]>): number {
+  let graded = 0;
+  for (const p of log) {
+    if (p.status !== 'pending') continue;
     const games = resultsByDate.get(p.gameDate) ?? [];
-    // The pick references one team; find the completed game involving it.
     const game = games.find((g) => g.homeAbbr === p.pickTeam || g.awayAbbr === p.pickTeam);
     if (!game) continue;
     const winner = winnerOf(game);
     if (!winner) continue; // not finished yet
     p.actualWinner = winner;
     p.status = winner === p.pickTeam ? 'correct' : 'incorrect';
+    graded++;
   }
+  return graded;
+}
 
-  writeFileSync(LOG_FILE, log.map((p) => JSON.stringify(p)).join('\n') + '\n');
-
+/**
+ * Build the review report (accuracy, Brier, calibration table, mistakes, tuning guidance) from
+ * whatever is graded in the log. Pure — no I/O — so it can be unit-tested and so it still produces
+ * a report from hand-graded picks when the live finals fetch is network-blocked.
+ */
+export function buildReview(log: Prediction[], today: string): string {
   const graded = log.filter((p) => p.status === 'correct' || p.status === 'incorrect');
   const correct = graded.filter((p) => p.status === 'correct');
   const accuracy = graded.length > 0 ? correct.length / graded.length : NaN;
@@ -70,13 +72,14 @@ async function main() {
   }
 
   const mistakes = graded.filter((p) => p.status === 'incorrect');
+  const pending = log.filter((p) => p.status === 'pending');
 
   const lines: string[] = [
-    `# Prediction review — ${new Date().toISOString().slice(0, 10)}`,
+    `# Prediction review — ${today}`,
     '',
     `- Graded: **${graded.length}** | Correct: **${correct.length}** | Accuracy: **${isNaN(accuracy) ? 'n/a' : (accuracy * 100).toFixed(1) + '%'}** (target 80%)`,
     `- Brier score: **${isNaN(brier) ? 'n/a' : brier.toFixed(4)}** (lower is better; 0.25 = coin flip)`,
-    `- Still pending: ${log.filter((p) => p.status === 'pending').length}`,
+    `- Still pending: ${pending.length}`,
     '',
     '## Calibration',
     '',
@@ -105,6 +108,18 @@ async function main() {
       '',
     );
   }
+  if (pending.length > 0) {
+    lines.push(
+      '## Still pending (ungraded)',
+      '',
+      'These picks have no final recorded yet. If the ESPN fetch was network-blocked, grade them by',
+      'hand: set `status` to `correct`/`incorrect` and `actualWinner` in `data/predictions.jsonl`,',
+      'then re-run `npm run predict:score` to regenerate this report.',
+      '',
+      ...pending.map((p) => `- ${p.gameDate} — ${p.question} → picked **${p.pickTeam}** (${(p.probability * 100).toFixed(1)}%)`),
+      '',
+    );
+  }
   lines.push(
     '## Tuning guidance',
     '',
@@ -114,13 +129,51 @@ async function main() {
     '- If model and market disagreed badly on misses: lower the model weight (MARKET_WEIGHT in prediction/src/model.ts).',
     '',
   );
+  return lines.join('\n');
+}
 
-  writeFileSync(REVIEW_FILE, lines.join('\n'));
-  console.log(lines.join('\n'));
+async function main() {
+  const log = loadLog();
+  const pending = log.filter((p) => p.status === 'pending');
+  const pendingDates = [...new Set(pending.map((p) => p.gameDate))];
+
+  console.error(`${log.length} logged prediction(s), ${pending.length} pending across ${pendingDates.length} date(s).`);
+
+  const resultsByDate = new Map<string, GameInfo[]>();
+  let fetchBlocked = false;
+  for (const date of pendingDates) {
+    try {
+      resultsByDate.set(date, await fetchScoreboard(date));
+    } catch (err) {
+      // ESPN egress is blocked in some sandboxes. Don't crash — leave those picks pending so the
+      // operator can grade them by hand (see the offline fallback in the /nba-predict skill), and
+      // still emit a report from whatever is already graded.
+      fetchBlocked = true;
+      console.error(`Could not fetch finals for ${date}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  if (fetchBlocked) {
+    console.error(
+      '\nFinals fetch was blocked for one or more dates. Grade those picks by hand in ' +
+        'data/predictions.jsonl (set status + actualWinner) and re-run predict:score.\n',
+    );
+  }
+
+  const newlyGraded = gradePending(log, resultsByDate);
+  console.error(`Newly graded from finals: ${newlyGraded}.`);
+
+  writeFileSync(LOG_FILE, log.map((p) => JSON.stringify(p)).join('\n') + '\n');
+
+  const review = buildReview(log, new Date().toISOString().slice(0, 10));
+  writeFileSync(REVIEW_FILE, review);
+  console.log(review);
   console.error(`\nReview written to ${REVIEW_FILE}; log updated in place.`);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run the CLI when executed directly, not when imported by tests.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
