@@ -168,10 +168,12 @@ commit `prediction/data/*` so the log persists.
    npm run predict:score
    ```
    This fetches finals (ESPN API path) and writes `prediction/data/review.md` with accuracy, Brier
-   score, a calibration table, and every miss. **If the score fetch is network-blocked**, get each
-   pending game's final score via `WebSearch "<away> <home> final score <date>"` and update the
-   `status` (`correct`/`incorrect`) and `actualWinner` fields in `prediction/data/predictions.jsonl`
-   by hand, then re-run `npm run predict:score` to regenerate the report.
+   score, a calibration table, and every miss. **If the score fetch is network-blocked**, the run no
+   longer crashes — it leaves those picks pending, still writes `review.md` from whatever is already
+   graded, and lists the pending games under a "Still pending (ungraded)" section. Grade each one by
+   hand: get its final via `WebSearch "<away> <home> final score <date>"`, set the `status`
+   (`correct`/`incorrect`) and `actualWinner` fields in `prediction/data/predictions.jsonl`, then
+   re-run `npm run predict:score` to fold them into the report.
 
 2. **Classify each miss** (read `review.md`, research each loss):
    - **Variance** — pick was sound, right side, favorite just lost. Expected ~1 in 5 at 80%. No action.

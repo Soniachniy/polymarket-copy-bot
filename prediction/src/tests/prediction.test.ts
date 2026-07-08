@@ -3,7 +3,8 @@ import { blend, deVig, matchMarketsToGames, modelHomeWinProb, normCdf } from '..
 import { isMoneylineMarket, normalizeMarkets } from '../polymarket.js';
 import { normalizeEspnAbbr, resolveTeam } from '../teams.js';
 import { rowsFromSlate } from '../slate.js';
-import type { GameInfo, TeamRating } from '../types.js';
+import { buildReview, gradePending } from '../score.js';
+import type { GameInfo, Prediction, TeamRating } from '../types.js';
 
 describe('teams', () => {
   it('resolves common Polymarket outcome labels', () => {
@@ -222,5 +223,78 @@ describe('slate path (web-research fallback)', () => {
       ],
     });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('score: grading and review', () => {
+  const mk = (over: Partial<Prediction>): Prediction => ({
+    ts: '2026-11-15T00:00:00Z',
+    gameDate: '2026-11-15',
+    slug: 's',
+    conditionId: 'c',
+    question: 'A @ B',
+    pickTeam: 'OKC',
+    pickOutcome: 'Thunder',
+    probability: 0.9,
+    pModel: 0.95,
+    pMarket: 0.88,
+    edge: 0.02,
+    threshold: 0.78,
+    rationale: 'r',
+    status: 'pending',
+    ...over,
+  });
+
+  it('grades pending picks from finals and leaves hand-graded ones untouched', () => {
+    const log: Prediction[] = [
+      mk({ pickTeam: 'OKC' }),
+      mk({ pickTeam: 'BOS', status: 'correct', actualWinner: 'BOS' }), // already hand-graded
+    ];
+    const results = new Map<string, GameInfo[]>([
+      [
+        '2026-11-15',
+        [{ espnId: '1', date: '2026-11-15', homeAbbr: 'OKC', awayAbbr: 'WAS', startTimeUtc: '', completed: true, homeScore: 120, awayScore: 100 }],
+      ],
+    ]);
+    const n = gradePending(log, results);
+    expect(n).toBe(1);
+    expect(log[0]!.status).toBe('correct');
+    expect(log[0]!.actualWinner).toBe('OKC');
+    expect(log[1]!.status).toBe('correct'); // untouched
+  });
+
+  it('leaves picks pending when no finals were fetched (network-blocked date)', () => {
+    const log: Prediction[] = [mk({})];
+    const n = gradePending(log, new Map()); // empty => fetch was blocked
+    expect(n).toBe(0);
+    expect(log[0]!.status).toBe('pending');
+  });
+
+  it('marks an incorrect pick when the other team wins', () => {
+    const log: Prediction[] = [mk({ pickTeam: 'OKC' })];
+    const results = new Map<string, GameInfo[]>([
+      [
+        '2026-11-15',
+        [{ espnId: '1', date: '2026-11-15', homeAbbr: 'OKC', awayAbbr: 'WAS', startTimeUtc: '', completed: true, homeScore: 100, awayScore: 120 }],
+      ],
+    ]);
+    gradePending(log, results);
+    expect(log[0]!.status).toBe('incorrect');
+    expect(log[0]!.actualWinner).toBe('WAS');
+  });
+
+  it('builds a report from hand-graded picks with no fetch at all', () => {
+    const log: Prediction[] = [
+      mk({ probability: 0.92, status: 'correct' }),
+      mk({ probability: 0.81, status: 'incorrect', actualWinner: 'WAS', question: 'C @ D' }),
+      mk({ probability: 0.85, status: 'pending' }),
+    ];
+    const md = buildReview(log, '2026-11-16');
+    expect(md).toContain('Graded: **2**');
+    expect(md).toContain('Correct: **1**');
+    expect(md).toContain('Accuracy: **50.0%**');
+    expect(md).toContain('Still pending: 1');
+    expect(md).toContain('Still pending (ungraded)'); // section shown so operator can hand-grade
+    expect(md).toContain('C @ D'); // the mistake is listed
   });
 });
