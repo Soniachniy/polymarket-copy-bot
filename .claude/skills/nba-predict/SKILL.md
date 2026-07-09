@@ -36,6 +36,28 @@ score loop, not on any single game.
 
 ## Mode 1: generate picks (`/nba-predict`)
 
+### Step 0 — confirm there is a real NBA slate to predict (do this FIRST)
+
+The model is **only valid for regular-season and playoff games played by full NBA rosters that
+Polymarket prices as a moneyline market.** Before anything else, confirm today qualifies. A single
+`WebSearch "NBA schedule <today's date>"` answers it. Stand down (report "no picks" and stop) if:
+
+- **Offseason (roughly late June → late September).** The Finals end in mid-June and the regular
+  season tips in late October; in between there are no real games. Report "offseason — no picks"
+  and stop. Do **not** fabricate a slate.
+- **Summer League (July, Las Vegas/California).** These show up in searches as "NBA games" but are
+  played by rookies, two-way, and undrafted players — **not** the rosters the net-rating model is
+  built on, and Polymarket generally has no moneyline market for them. The model's inputs are
+  meaningless here. **Never build a slate from Summer League games.** Report "Summer League only —
+  the model doesn't cover it, no picks" and stop.
+- **Preseason exhibitions / All-Star weekend / any event where stars sit by design.** Ratings and
+  the market both break down when the result doesn't matter to the teams. Skip.
+
+Only when today has genuine regular-season or playoff games do you proceed to Step 1. This one
+check is what stops the system from confidently "predicting" games it has no business touching —
+the fastest way to wreck the hit rate is to run the regular-season model on non-regular-season
+basketball.
+
 ### Step 1 — try the live-API path first
 
 ```bash
