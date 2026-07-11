@@ -215,6 +215,40 @@ describe('slate path (web-research fallback)', () => {
     expect(row!.pMarket).toBeCloseTo(0.8, 5); // home is the pick; market prob ~ 0.8
   });
 
+  it('gates model-driven picks the market does not back as a clear favorite', () => {
+    // Home is a huge net-rating favorite (model loves it) but the market only rates it ~0.68 —
+    // between the ~0.662 threshold-reachable minimum and the 0.70 floor. The blend clears 0.78 on
+    // the model's strength, but the market floor must veto it.
+    const game = {
+      date: '2026-11-15',
+      home: 'Nuggets',
+      away: 'Wizards',
+      homeNetRating: 12,
+      awayNetRating: -7,
+      marketHomePrice: 0.68,
+    };
+    const [gatedRow] = rowsFromSlate({ threshold: 0.78, games: [game] });
+    expect(gatedRow!.probability).toBeGreaterThanOrEqual(0.78); // would pass on confidence alone
+    expect(gatedRow!.pMarket).toBeLessThan(0.7); // but the market isn't a clear favorite
+    expect(gatedRow!.floorGated).toBe(true);
+    expect(gatedRow!.pass).toBe(false);
+
+    // Lowering the floor lets the same game through — the guard is the only thing blocking it.
+    const [ungated] = rowsFromSlate({ threshold: 0.78, marketFloor: 0.6, games: [game] });
+    expect(ungated!.floorGated).toBe(false);
+    expect(ungated!.pass).toBe(true);
+  });
+
+  it('does not gate a genuine strong favorite the market also backs', () => {
+    const [row] = rowsFromSlate({
+      threshold: 0.78,
+      games: [{ date: '2026-11-15', home: 'Thunder', away: 'Wizards', homeNetRating: 9.5, awayNetRating: -8, marketHomePrice: 0.9 }],
+    });
+    expect(row!.pMarket).toBeGreaterThanOrEqual(0.7);
+    expect(row!.floorGated).toBe(false);
+    expect(row!.pass).toBe(true);
+  });
+
   it('drops games with unresolvable team names or impossible prices', () => {
     const rows = rowsFromSlate({
       games: [

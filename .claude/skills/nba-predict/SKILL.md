@@ -32,6 +32,16 @@ something," resist it: a skipped coin flip protects the hit rate; a forced 55% p
 A stated-80% pick is *supposed* to lose 1 in 5. Judge the system over dozens of picks via the
 score loop, not on any single game.
 
+**The engine now enforces the "market is sharp" rail for you.** A pick must clear *both* the
+confidence threshold (0.78) *and* a market-agreement floor (default 0.70 on the de-vigged market
+price of the picked side). A game where the model is extreme but the market only rates the team a
+mild favorite (e.g. model 97% / market 68%) clears the blend on model weight alone — exactly the
+overconfident "model error" miss the score loop is meant to catch. The engine now vetoes these
+before they're emitted: they print as `[gate]` (not `[PICK]`) and are excluded. You no longer have
+to catch them by eye, but still *report* them — telling the user "N games were model-driven and the
+market didn't back them, so I skipped them" is part of the discipline. Override only via the score
+loop with `--market-floor` (API path) or `"marketFloor"` in the slate (slate path).
+
 ---
 
 ## Mode 1: generate picks (`/nba-predict`)
@@ -211,9 +221,13 @@ commit `prediction/data/*` so the log persists.
      down and you'll get more picks at the same accuracy.
    - Misses cluster on injury surprises → enforce the "skip unresolved Questionable stars" rule harder.
 
-   Apply small changes (threshold, `MARKET_WEIGHT`, `HOME_COURT_POINTS`, `MARGIN_SIGMA` in
-   `prediction/src/model.ts`) only through this loop, one adjustment at a time, and note what you
-   changed and why in your reply so the next session has the reasoning.
+   - Misses were **model-driven** (high model, low market, large positive edge) → raise the
+     **market floor** (`--market-floor` / `marketFloor`, default 0.70) so the market must back a
+     pick more strongly before it can be emitted.
+
+   Apply small changes (threshold, market floor, `MARKET_WEIGHT`, `MARKET_FLOOR`, `HOME_COURT_POINTS`,
+   `MARGIN_SIGMA` in `prediction/src/model.ts`) only through this loop, one adjustment at a time, and
+   note what you changed and why in your reply so the next session has the reasoning.
 
 4. Summarize: accuracy so far, Brier, calibration health, what you changed. Remind the user to
    commit `prediction/data/*`.

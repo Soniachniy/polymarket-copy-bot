@@ -6,6 +6,16 @@ export const HOME_COURT_POINTS = 2.6;
 export const MARGIN_SIGMA = 11.5;
 /** Weight on the market's implied probability in the final blend. Markets are sharp; respect them. */
 export const MARKET_WEIGHT = 0.65;
+/**
+ * Hard floor on the de-vigged market probability of the picked side. A game may clear the
+ * blended-confidence threshold on the strength of the model alone (35% weight) even when the
+ * market only rates the team a mild favorite — e.g. blend 0.78 is reachable with the market at
+ * just 0.66, which loses ~1 in 3, blowing the 1-in-5 budget. The market is the sharpest public
+ * forecast, so we additionally require it to call the pick a clear favorite. This turns the
+ * skill's "trust the market, skip model-driven outliers" guidance into a code invariant enforced
+ * identically on the live and slate paths. Overridable per-run.
+ */
+export const MARKET_FLOOR = 0.7;
 
 /** Standard normal CDF via Abramowitz-Stegun erf approximation. */
 export function normCdf(x: number): number {

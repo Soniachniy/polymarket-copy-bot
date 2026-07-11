@@ -127,6 +127,8 @@ export function buildReview(log: Prediction[], today: string): string {
     '- If hit rate per bucket is consistently *above* stated confidence: threshold can come down — you are leaving picks on the table.',
     '- If misses cluster around injury surprises: tighten the rule that games with unresolved star "Questionable" tags are skipped, not adjusted.',
     '- If model and market disagreed badly on misses: lower the model weight (MARKET_WEIGHT in prediction/src/model.ts).',
+    '- If misses were model-driven (high model / low market, large positive edge): raise the market floor',
+    '  (`--market-floor` / `marketFloor`, default 0.70) so the market must back the pick more strongly.',
     '',
   );
   return lines.join('\n');

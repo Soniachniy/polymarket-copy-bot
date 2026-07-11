@@ -1,10 +1,13 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { blend, deVig, modelHomeWinProb } from './model.js';
+import { blend, deVig, MARKET_FLOOR, modelHomeWinProb } from './model.js';
 import type { AdjustmentsFile, Prediction, TeamRating } from './types.js';
 
 /** A prediction plus the transient fields used for display/selection but not persisted. */
 export type PredictionRow = Prediction & {
   pass: boolean;
+  /** Cleared the confidence threshold but was blocked because the market wasn't a clear enough favorite. */
+  floorGated: boolean;
+  marketFloor: number;
   expectedMargin: number;
   notes: string[];
 };
@@ -26,6 +29,8 @@ export interface BuildRowInput {
   homeIdx: number;
   adjustments: AdjustmentsFile;
   threshold: number;
+  /** De-vigged market probability the picked side must also clear. Defaults to MARKET_FLOOR. */
+  marketFloor?: number | undefined;
   /** Optional extra rationale text (e.g. listed injuries) appended verbatim. */
   extraNote?: string;
 }
@@ -52,6 +57,12 @@ export function buildPredictionRow(input: BuildRowInput): PredictionRow {
   const pModel = pickIsHome ? model.pHome : 1 - model.pHome;
   const pMarket = pickIsHome ? pMarketHome : 1 - pMarketHome;
 
+  const marketFloor = input.marketFloor ?? MARKET_FLOOR;
+  const clearsThreshold = probability >= input.threshold;
+  const clearsFloor = pMarket >= marketFloor;
+  const pass = clearsThreshold && clearsFloor;
+  const floorGated = clearsThreshold && !clearsFloor;
+
   return {
     ts: new Date().toISOString(),
     gameDate: input.gameDate,
@@ -68,10 +79,13 @@ export function buildPredictionRow(input: BuildRowInput): PredictionRow {
     rationale:
       `margin ${model.expectedMargin >= 0 ? '+' : ''}${model.expectedMargin.toFixed(1)} home; ` +
       `model ${pct(pModel)}, market ${pct(pMarket)}` +
+      (floorGated ? ` | GATED: market ${pct(pMarket)} < floor ${pct(marketFloor)} (model-driven, skipped)` : '') +
       (model.notes.length ? ` | adj: ${model.notes.join('; ')}` : '') +
       (input.extraNote ?? ''),
     status: 'pending',
-    pass: probability >= input.threshold,
+    pass,
+    floorGated,
+    marketFloor,
     expectedMargin: model.expectedMargin,
     notes: model.notes,
   };
@@ -86,7 +100,7 @@ export function savePicks(logFile: string, dataDir: string, picks: PredictionRow
   for (const r of picks) {
     if (r.conditionId && existing.includes(r.conditionId)) continue; // don't double-log a market
     if (!r.conditionId && existing.includes(`"slug":"${r.slug}"`) && r.slug) continue; // fall back to slug de-dup
-    const { pass: _pass, expectedMargin: _m, notes: _n, ...record } = r;
+    const { pass: _pass, floorGated: _fg, marketFloor: _mf, expectedMargin: _m, notes: _n, ...record } = r;
     appendFileSync(logFile, JSON.stringify(record) + '\n');
     saved++;
   }
@@ -95,7 +109,7 @@ export function savePicks(logFile: string, dataDir: string, picks: PredictionRow
 
 /** Pretty-print a row to stdout. */
 export function printRow(r: PredictionRow): void {
-  const tag = r.pass ? 'PICK' : 'pass';
+  const tag = r.pass ? 'PICK' : r.floorGated ? 'gate' : 'pass';
   console.log(
     `[${tag}] ${r.gameDate}  ${r.question}\n` +
       `       -> ${r.pickOutcome} (${r.pickTeam})  conf ${pct(r.probability)}  ` +
