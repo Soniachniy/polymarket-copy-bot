@@ -15,6 +15,7 @@ const DEFAULT_THRESHOLD = 0.78;
 
 interface CliOptions {
   threshold: number;
+  marketFloor?: number;
   save: boolean;
   json: boolean;
   dates: string[]; // YYYY-MM-DD
@@ -35,6 +36,7 @@ function parseArgs(argv: string[]): CliOptions {
     else if (arg === '--json') opts.json = true;
     else if (arg === '--all') opts.showAll = true;
     else if (arg === '--threshold') opts.threshold = Number(argv[++i]);
+    else if (arg === '--market-floor') opts.marketFloor = Number(argv[++i]);
     else if (arg === '--date') opts.dates.push(argv[++i]!);
   }
   return opts;
@@ -104,6 +106,7 @@ async function main() {
         homeIdx,
         adjustments,
         threshold: opts.threshold,
+        marketFloor: opts.marketFloor,
         extraNote: injuryNote,
       }),
     );
@@ -111,6 +114,7 @@ async function main() {
 
   rows.sort((a, b) => b.probability - a.probability);
   const picks = rows.filter((r) => r.pass);
+  const gated = rows.filter((r) => r.floorGated);
 
   if (opts.json) {
     console.log(JSON.stringify(opts.showAll ? rows : picks, null, 2));
@@ -121,6 +125,12 @@ async function main() {
       console.log(
         'No games clear the confidence threshold today. Skipping is the correct output — ' +
           'forcing picks on coin-flip games is what destroys accuracy.\n',
+      );
+    }
+    if (gated.length > 0) {
+      console.log(
+        `${gated.length} game(s) cleared the confidence threshold but were gated by the market floor ` +
+          `(model-driven picks the market doesn't back as a clear favorite — skipped to protect accuracy).`,
       );
     }
     console.log(`${picks.length} pick(s) / ${rows.length} matched game(s).`);

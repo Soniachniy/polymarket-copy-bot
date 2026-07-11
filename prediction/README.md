@@ -11,6 +11,13 @@ on all games, and it is the best public forecast that exists. The honest path to
 1. **Selectivity** — only emit picks whose blended win probability clears a threshold
    (default 0.78). Coin-flip games are skipped on purpose. Some days produce zero picks;
    that is correct behavior, not a bug.
+   - **Market-agreement floor (a hard code invariant).** A game can clear the 0.78 blend on the
+     model's strength alone (the model carries 35% weight) even when the de-vigged market only
+     rates the team a mild ~0.66–0.69 favorite — which loses far more than 1 in 5. So a pick must
+     *also* clear a market floor (default 0.70): the sharpest public forecast has to call it a
+     clear favorite too. These "model-driven" games are reported as `gate` (not `PICK`) and
+     skipped. This turns the old "trust the market, skip outliers" guidance into enforced code on
+     both the live and slate paths. Override with `--market-floor` (CLI) or `marketFloor` (slate).
 2. **Calibration** — a 80% confidence pick *should* lose 1 in 5. The score loop checks that
    stated confidence matches realized hit rate per bucket and tunes the threshold.
 3. **Market anchoring** — the final probability is a blend of a ratings model (35%) and the
@@ -46,6 +53,7 @@ npm run predict                       # picks above threshold for today's slate 
 npm run predict -- --all              # every matched game incl. below-threshold (analysis view)
 npm run predict -- --save             # append picks to data/predictions.jsonl
 npm run predict -- --threshold 0.82   # override confidence threshold
+npm run predict -- --market-floor 0.72 # override the market-agreement floor (default 0.70)
 npm run predict -- --date 2026-06-11  # specific date (repeatable)
 npm run predict:score                 # grade pending picks, write data/review.md
 
@@ -82,7 +90,10 @@ The `/nba-predict` skill tries the live path first and falls back to the slate p
 ## Model
 
 `P(home) = Φ((diff_home − diff_away + 2.6 home court + manual adjustments) / 11.5)`,
-then blended with the de-vigged market price at 65% market weight. Constants live in
+then blended with the de-vigged market price at 65% market weight. A pick must clear both the
+confidence threshold (0.78) **and** the market-agreement floor (0.70 on the de-vigged market
+price of the picked side) — the latter vetoes model-driven picks the market doesn't back.
+Constants (`MARKET_WEIGHT`, `MARKET_FLOOR`, `HOME_COURT_POINTS`, `MARGIN_SIGMA`) live in
 `prediction/src/model.ts`; tune them only through the score-review loop.
 
 ## Files

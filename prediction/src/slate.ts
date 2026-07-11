@@ -48,6 +48,8 @@ export interface SlateGame {
 
 export interface SlateFile {
   threshold?: number;
+  /** De-vigged market probability a pick must also clear. Defaults to MARKET_FLOOR (0.70). */
+  marketFloor?: number;
   games: SlateGame[];
   adjustments?: Record<string, ManualAdjustment>;
 }
@@ -73,6 +75,7 @@ function teamLabel(abbr: string): string {
 
 export function rowsFromSlate(slate: SlateFile): PredictionRow[] {
   const threshold = slate.threshold ?? 0.78;
+  const marketFloor = slate.marketFloor;
   const adjustments: AdjustmentsFile = slate.adjustments ?? {};
   const rows: PredictionRow[] = [];
 
@@ -105,6 +108,7 @@ export function rowsFromSlate(slate: SlateFile): PredictionRow[] {
         homeIdx: 0,
         adjustments,
         threshold,
+        marketFloor,
         extraNote: g.note ? ` | note: ${g.note}` : '',
       }),
     );
@@ -130,9 +134,12 @@ function main() {
     process.exit(1);
   }
   const slate = JSON.parse(readFileSync(fileArg, 'utf8')) as SlateFile;
+  const floorIdx = argv.indexOf('--market-floor');
+  if (floorIdx >= 0 && argv[floorIdx + 1]) slate.marketFloor = Number(argv[floorIdx + 1]);
   const threshold = slate.threshold ?? 0.78;
   const rows = rowsFromSlate(slate).sort((a, b) => b.probability - a.probability);
   const picks = rows.filter((r) => r.pass);
+  const gated = rows.filter((r) => r.floorGated);
 
   if (json) {
     console.log(JSON.stringify(showAll ? rows : picks, null, 2));
@@ -143,6 +150,12 @@ function main() {
       console.log(
         'No games clear the confidence threshold. Skipping is the correct output — ' +
           'forcing picks on coin-flip games is what destroys accuracy.\n',
+      );
+    }
+    if (gated.length > 0) {
+      console.log(
+        `${gated.length} game(s) cleared the confidence threshold but were gated by the market floor ` +
+          `(model-driven picks the market doesn't back as a clear favorite — skipped to protect accuracy).`,
       );
     }
     console.log(`${picks.length} pick(s) / ${rows.length} game(s) in slate.`);
